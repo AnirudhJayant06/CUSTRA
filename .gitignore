@@ -19,3 +19,13 @@ __pycache__/
 
 # Logs
 *.log
+
+# Hosting, cloud credentials, and local test artifacts
+.firebase/
+.aws/
+*-credentials.json
+*service-account*.json
+*.pem
+*.key
+playwright-report/
+test-results/
