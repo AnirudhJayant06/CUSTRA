@@ -1,55 +1,49 @@
-"""HTTP contract tests. Start the backend first; optionally set CUSTRA_TEST_URL."""
-import json
-import os
-import unittest
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+"""Public health and private session boundary checks for the current API."""
+
+import httpx
+import pytest
+
+from app.main import app
 
 
-class ApiTests(unittest.TestCase):
-    def request(self, path, payload=None):
-        request = Request(
-            os.environ.get("CUSTRA_TEST_URL", "http://127.0.0.1:8000") + path,
-            data=json.dumps(payload).encode() if payload is not None else None,
-            headers={"Content-Type": "application/json"},
-        )
-        try:
-            response = urlopen(request, timeout=5)
-        except HTTPError as error:
-            response = error
-        with response:
-            return response.status, json.load(response)
-
-    def test_health(self):
-        self.assertEqual(self.request("/api/health"), (200, {
-            "status": "healthy", "service": "Custra Backend"}))
-
-    def test_submission(self):
-        status, body = self.request("/api/test-issue", {
-            "product_name": " Samsung Washing Machine ",
-            "description": " Water is leaking underneath. "})
-        self.assertEqual(status, 200)
-        self.assertEqual(body, {
-            "success": True, "message": "Test issue submitted successfully!",
-            "product_name": "Samsung Washing Machine",
-            "description": "Water is leaking underneath.", "status": "received"})
-
-    def test_invalid_submissions(self):
-        for field, invalid_values in {
-            "product_name": ["", " \t\n", "a" * 121, None, 42],
-            "description": ["", " \t\n", "a" * 2001, None, 42],
-        }.items():
-            for value in invalid_values:
-                with self.subTest(field=field, value=str(value)[:20]):
-                    payload = {"product_name": "Washer", "description": "Leaking"}
-                    payload[field] = value
-                    self.assertEqual(self.request("/api/test-issue", payload)[0], 422)
-        self.assertEqual(self.request("/api/test-issue", {})[0], 422)
-
-    def test_length_boundaries(self):
-        self.assertEqual(self.request("/api/test-issue", {
-            "product_name": "a" * 120, "description": "a" * 2000})[0], 200)
+@pytest.mark.asyncio
+async def test_health():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as client:
+        response = await client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy", "service": "Custra Backend"}
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.asyncio
+async def test_session_requires_login():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as client:
+        response = await client.get("/api/auth/session")
+    assert response.status_code == 401
+    assert response.json() == {
+        "code": "unauthorized", "message": "Sign in to continue", "retryable": False,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,path', [
+    ('GET', '/api/profile'), ('PATCH', '/api/profile'),
+    ('GET', '/api/addresses'), ('POST', '/api/addresses'),
+    ('GET', '/api/products'), ('POST', '/api/products'),
+    ('GET', '/api/catalog'), ('GET', '/api/service-centers'),
+    ('GET', '/api/documents/fictional/content'),
+    ('POST', '/api/products/fictional/documents'),
+    ('GET', '/api/complaints'), ('POST', '/api/complaints'),
+    ('GET', '/api/complaints/fictional'), ('GET', '/api/complaints/fictional/events'),
+    ('POST', '/api/complaints/fictional/advance'), ('GET', '/api/complaints/fictional/slots'),
+    ('POST', '/api/complaints/fictional/appointment'),
+    ('POST', '/api/complaints/fictional/confirm-resolution'),
+    ('POST', '/api/complaints/fictional/documents'),
+])
+async def test_data_and_agent_routes_reject_direct_unauthenticated_calls(method, path):
+    # No credentials or backing services are configured: authentication must
+    # reject the request before any store, upload or model access.
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://api.test') as client:
+        response = await client.request(method, path)
+    assert response.status_code == 401
+    assert response.json()['code'] == 'unauthorized'
+    assert response.headers['cache-control'] == 'private, no-store'

@@ -29,3 +29,6 @@ __pycache__/
 *.key
 playwright-report/
 test-results/
+
+# Other files and folders to ignore
+local_system_files

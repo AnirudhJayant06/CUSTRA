@@ -1,0 +1,556 @@
+{
+  "categories": [
+    {
+      "id": "smartphone",
+      "name": "Smartphone",
+      "brands": [
+        {
+          "id": "apple",
+          "name": "Apple"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "google",
+          "name": "Google"
+        },
+        {
+          "id": "oneplus",
+          "name": "OnePlus"
+        },
+        {
+          "id": "motorola",
+          "name": "Motorola"
+        },
+        {
+          "id": "xiaomi",
+          "name": "Xiaomi"
+        },
+        {
+          "id": "oppo",
+          "name": "Oppo"
+        },
+        {
+          "id": "vivo",
+          "name": "Vivo"
+        },
+        {
+          "id": "realme",
+          "name": "Realme"
+        },
+        {
+          "id": "nokia",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "laptop",
+      "name": "Laptop",
+      "brands": [
+        {
+          "id": "apple",
+          "name": "Apple"
+        },
+        {
+          "id": "dell",
+          "name": "Dell"
+        },
+        {
+          "id": "hp",
+          "name": "HP"
+        },
+        {
+          "id": "lenovo",
+          "name": "Lenovo"
+        },
+        {
+          "id": "asus",
+          "name": "Asus"
+        },
+        {
+          "id": "acer",
+          "name": "Acer"
+        },
+        {
+          "id": "msi",
+          "name": "MSI"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "microsoft",
+          "name": "Microsoft"
+        }
+      ]
+    },
+    {
+      "id": "television",
+      "name": "Television",
+      "brands": [
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "sony",
+          "name": "Sony"
+        },
+        {
+          "id": "tcl",
+          "name": "TCL"
+        },
+        {
+          "id": "hisense",
+          "name": "Hisense"
+        },
+        {
+          "id": "panasonic",
+          "name": "Panasonic"
+        },
+        {
+          "id": "xiaomi",
+          "name": "Xiaomi"
+        },
+        {
+          "id": "philips",
+          "name": "Philips"
+        },
+        {
+          "id": "vu",
+          "name": "Vu"
+        },
+        {
+          "id": "toshiba",
+          "name": "Toshiba"
+        }
+      ]
+    },
+    {
+      "id": "washing-machine",
+      "name": "Washing machine",
+      "brands": [
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "whirlpool",
+          "name": "Whirlpool"
+        },
+        {
+          "id": "bosch",
+          "name": "Bosch"
+        },
+        {
+          "id": "ifb",
+          "name": "IFB"
+        },
+        {
+          "id": "haier",
+          "name": "Haier"
+        },
+        {
+          "id": "godrej",
+          "name": "Godrej"
+        },
+        {
+          "id": "panasonic",
+          "name": "Panasonic"
+        },
+        {
+          "id": "voltas",
+          "name": "Voltas"
+        },
+        {
+          "id": "beko",
+          "name": "Beko"
+        }
+      ]
+    },
+    {
+      "id": "refrigerator",
+      "name": "Refrigerator",
+      "brands": [
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "whirlpool",
+          "name": "Whirlpool"
+        },
+        {
+          "id": "godrej",
+          "name": "Godrej"
+        },
+        {
+          "id": "haier",
+          "name": "Haier"
+        },
+        {
+          "id": "bosch",
+          "name": "Bosch"
+        },
+        {
+          "id": "panasonic",
+          "name": "Panasonic"
+        },
+        {
+          "id": "voltas",
+          "name": "Voltas"
+        },
+        {
+          "id": "hitachi",
+          "name": "Hitachi"
+        },
+        {
+          "id": "ifb",
+          "name": "IFB"
+        }
+      ]
+    },
+    {
+      "id": "air-conditioner",
+      "name": "Air conditioner",
+      "brands": [
+        {
+          "id": "daikin",
+          "name": "Daikin"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "voltas",
+          "name": "Voltas"
+        },
+        {
+          "id": "blue-star",
+          "name": "Blue Star"
+        },
+        {
+          "id": "hitachi",
+          "name": "Hitachi"
+        },
+        {
+          "id": "carrier",
+          "name": "Carrier"
+        },
+        {
+          "id": "panasonic",
+          "name": "Panasonic"
+        },
+        {
+          "id": "whirlpool",
+          "name": "Whirlpool"
+        },
+        {
+          "id": "godrej",
+          "name": "Godrej"
+        }
+      ]
+    },
+    {
+      "id": "microwave",
+      "name": "Microwave",
+      "brands": [
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "ifb",
+          "name": "IFB"
+        },
+        {
+          "id": "panasonic",
+          "name": "Panasonic"
+        },
+        {
+          "id": "whirlpool",
+          "name": "Whirlpool"
+        },
+        {
+          "id": "godrej",
+          "name": "Godrej"
+        },
+        {
+          "id": "bosch",
+          "name": "Bosch"
+        },
+        {
+          "id": "haier",
+          "name": "Haier"
+        },
+        {
+          "id": "bajaj",
+          "name": "Bajaj"
+        },
+        {
+          "id": "voltas",
+          "name": "Voltas"
+        }
+      ]
+    },
+    {
+      "id": "dishwasher",
+      "name": "Dishwasher",
+      "brands": [
+        {
+          "id": "bosch",
+          "name": "Bosch"
+        },
+        {
+          "id": "ifb",
+          "name": "IFB"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "whirlpool",
+          "name": "Whirlpool"
+        },
+        {
+          "id": "siemens",
+          "name": "Siemens"
+        },
+        {
+          "id": "beko",
+          "name": "Beko"
+        },
+        {
+          "id": "haier",
+          "name": "Haier"
+        },
+        {
+          "id": "voltas",
+          "name": "Voltas"
+        },
+        {
+          "id": "faber",
+          "name": "Faber"
+        }
+      ]
+    },
+    {
+      "id": "printer",
+      "name": "Printer",
+      "brands": [
+        {
+          "id": "hp",
+          "name": "HP"
+        },
+        {
+          "id": "canon",
+          "name": "Canon"
+        },
+        {
+          "id": "epson",
+          "name": "Epson"
+        },
+        {
+          "id": "brother",
+          "name": "Brother"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "xerox",
+          "name": "Xerox"
+        },
+        {
+          "id": "ricoh",
+          "name": "Ricoh"
+        },
+        {
+          "id": "kyocera",
+          "name": "Kyocera"
+        },
+        {
+          "id": "lexmark",
+          "name": "Lexmark"
+        },
+        {
+          "id": "pantum",
+          "name": "Pantum"
+        }
+      ]
+    },
+    {
+      "id": "water-purifier",
+      "name": "Water purifier",
+      "brands": [
+        {
+          "id": "kent",
+          "name": "Kent"
+        },
+        {
+          "id": "aquaguard",
+          "name": "Aquaguard"
+        },
+        {
+          "id": "pureit",
+          "name": "Pureit"
+        },
+        {
+          "id": "livpure",
+          "name": "Livpure"
+        },
+        {
+          "id": "ao-smith",
+          "name": "AO Smith"
+        },
+        {
+          "id": "blue-star",
+          "name": "Blue Star"
+        },
+        {
+          "id": "havells",
+          "name": "Havells"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "tata-swach",
+          "name": "Tata Swach"
+        },
+        {
+          "id": "eureka-forbes",
+          "name": "Eureka Forbes"
+        }
+      ]
+    },
+    {
+      "id": "vacuum-cleaner",
+      "name": "Vacuum cleaner",
+      "brands": [
+        {
+          "id": "dyson",
+          "name": "Dyson"
+        },
+        {
+          "id": "philips",
+          "name": "Philips"
+        },
+        {
+          "id": "eureka-forbes",
+          "name": "Eureka Forbes"
+        },
+        {
+          "id": "karcher",
+          "name": "Karcher"
+        },
+        {
+          "id": "bosch",
+          "name": "Bosch"
+        },
+        {
+          "id": "black-decker",
+          "name": "Black+Decker"
+        },
+        {
+          "id": "panasonic",
+          "name": "Panasonic"
+        },
+        {
+          "id": "xiaomi",
+          "name": "Xiaomi"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        }
+      ]
+    },
+    {
+      "id": "speaker",
+      "name": "Speaker",
+      "brands": [
+        {
+          "id": "jbl",
+          "name": "JBL"
+        },
+        {
+          "id": "sony",
+          "name": "Sony"
+        },
+        {
+          "id": "bose",
+          "name": "Bose"
+        },
+        {
+          "id": "marshall",
+          "name": "Marshall"
+        },
+        {
+          "id": "boat",
+          "name": "Boat"
+        },
+        {
+          "id": "sonos",
+          "name": "Sonos"
+        },
+        {
+          "id": "harman-kardon",
+          "name": "Harman Kardon"
+        },
+        {
+          "id": "samsung",
+          "name": "Samsung"
+        },
+        {
+          "id": "lg",
+          "name": "LG"
+        },
+        {
+          "id": "philips",
+          "name": "Philips"
+        }
+      ]
+    }
+  ]
+}

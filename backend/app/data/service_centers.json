@@ -1,0 +1,25 @@
+{
+  "centers": [
+    {
+      "id": "demo-pune-1",
+      "name": "Sample Service Desk",
+      "city": "Pune",
+      "address": "10 Fiction Street, Pune",
+      "isDemo": true
+    },
+    {
+      "id": "demo-mumbai-1",
+      "name": "Sample Care Point",
+      "city": "Mumbai",
+      "address": "22 Example Road, Mumbai",
+      "isDemo": true
+    },
+    {
+      "id": "demo-delhi-1",
+      "name": "Sample Repair Desk",
+      "city": "New Delhi",
+      "address": "4 Imaginary Lane, New Delhi",
+      "isDemo": true
+    }
+  ]
+}
