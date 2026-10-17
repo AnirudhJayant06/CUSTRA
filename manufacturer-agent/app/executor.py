@@ -24,17 +24,7 @@ QUESTIONS = {
 }
 
 
-def future_slots() -> list[dict]:
-    local = datetime.now(ZoneInfo("Asia/Kolkata"))
-    slots = []
-    for day in range(1, 4):
-        for hour in (9, 15):
-            start = (local + timedelta(days=day)).replace(hour=hour, minute=0, second=0, microsecond=0)
-            slots.append({"id": f"demo-{start.strftime('%Y%m%d-%H')}",
-                          "start": start.astimezone(timezone.utc).isoformat(),
-                          "end": (start + timedelta(hours=1)).astimezone(timezone.utc).isoformat(),
-                          "timezone": "Asia/Kolkata", "simulated": True})
-    return slots
+from demo_schedule import future_slots
 
 
 class BusinessService:

@@ -1,0 +1,47 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+test.beforeEach(async ({ page, request }) => {
+  await request.post('http://127.0.0.1:8018/test/reset');
+  const auth = JSON.parse(readFileSync('/tmp/custra-e2e-credentials.json', 'utf8'));
+  await page.goto('/login'); await page.getByLabel('Username', { exact: true }).fill(auth.username); await page.getByLabel('Password', { exact: true }).fill(auth.password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Active complaints', exact: true })).toBeVisible(); await page.goto('/products/new');
+});
+test('models depend on type/brand, allow custom model and years normalize to months', async ({ page }) => {
+  await page.getByLabel('Product type', { exact: true }).selectOption('smartphone'); await page.getByLabel('Brand', { exact: true }).selectOption('oneplus');
+  await expect(page.getByRole('button', { name: 'Model', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Model', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Choose model', exact: true });
+  await dialog.getByRole('searchbox', { name: 'Search models', exact: true }).fill('CPH2649');
+  await dialog.getByRole('button', { name: /OnePlus 13.*CPH2649/ }).click();
+  await expect(page.getByRole('button', { name: 'Model', exact: true })).toContainText('CPH2649');
+  await page.getByLabel('Brand', { exact: true }).selectOption('samsung');
+  await expect(page.getByRole('button', { name: 'Model', exact: true })).not.toContainText('CPH2649');
+  await page.getByRole('button', { name: 'Model', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: /OnePlus 13/ })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Other — enter manually', exact: true }).click();
+  await page.getByLabel('Model number', { exact: true }).fill('CUSTOM-OLD-DEVICE');
+  await page.getByText('Purchase & warranty', { exact: false }).click();
+  await page.getByLabel('Purchase date', { exact: true }).fill('2024-02-29');
+  await page.getByLabel('Warranty period', { exact: true }).fill('2');
+  await page.getByLabel('Warranty unit', { exact: true }).selectOption('years');
+  await page.getByRole('button', { name: 'Save product', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Samsung Smartphone', exact: true })).toBeVisible();
+  const products = await (await page.request.get('/api/products')).json();
+  expect(products[0].modelNumber).toBe('CUSTOM-OLD-DEVICE'); expect(products[0].warrantyMonths).toBe(24); expect(products[0].warrantyExpiry).toBe('2026-02-28');
+});
+test('basic form fits viewport and document sheet offers camera, photos and file selection', async ({ page }, testInfo) => {
+  const save = page.getByRole('button', { name: 'Save product', exact: true });
+  await expect(save).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('compact-product-form.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Add document', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add document', exact: true });
+  await expect(dialog.getByRole('button', { name: 'Choose photo', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Upload file', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('document-options.png') });
+  const camera = page.waitForEvent('filechooser');
+  await dialog.getByRole('button', { name: 'Take photo', exact: true }).click();
+  const chooser = await camera; expect(await chooser.element().getAttribute('capture')).toBe('environment');
+  await chooser.setFiles({ name: 'document-photo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
+  await expect(page.getByRole('img', { name: 'Selected document', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove document', exact: true }).click(); await expect(page.getByRole('img', { name: 'Selected document' })).toHaveCount(0);
+});

@@ -32,3 +32,25 @@ test-results/
 
 # Other files and folders to ignore
 local_system_files
+
+# Local Codex configuration, session history and personal setup utilities
+/.codex/
+/docs/SESSION_STATE.md
+/docs/CODEX_GLOBAL_POLICY.md
+/scripts/setup-codex-workflow.sh
+/scripts/fix-codex-compaction.py
+
+# Python tooling artifacts
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Local Google authentication
+application_default_credentials.json
+
+# Additional editor / OS files
+.idea/
+Thumbs.db

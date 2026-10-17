@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from app.api.auth import ApiError
 from app.models.product import ProductInput
 from app.services.auth import require_session
+from app.services.leases import CaseConflict
 
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_session)])
@@ -49,3 +50,13 @@ def update_product(product_id: str, changes: dict, request: Request):
         raise ApiError(404, "not_found", "Product not found") from exc
     except ValueError as exc:
         raise ApiError(422, "invalid_input", str(exc)) from exc
+
+
+@router.delete('/products/{product_id}')
+def delete_product(product_id: str, request: Request):
+    try:
+        return request.app.state.cases.store.delete_product(product_id)
+    except LookupError as exc:
+        raise ApiError(404, 'not_found', 'Product not found') from exc
+    except CaseConflict as exc:
+        raise ApiError(409, 'case_conflict', str(exc), True) from exc

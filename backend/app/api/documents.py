@@ -68,16 +68,16 @@ def list_case_documents(case_id: str, request: Request):
 
 
 @router.post("/complaints/{case_id}/documents")
-def upload_case_photo(case_id: str, request: Request, file: UploadFile = File(...)):
+def upload_case_document(case_id: str, request: Request, file: UploadFile = File(...)):
     try:
-        request.app.state.cases.get(case_id)
+        case = request.app.state.cases.get(case_id)
     except LookupError as exc:
         raise ApiError(404, "not_found", "Complaint not found") from exc
-    if file.content_type not in {"image/jpeg", "image/png"}:
-        raise ApiError(422, "invalid_file", "Case photos must be JPEG or PNG")
+    if case['status'] == 'CLOSED':
+        raise ApiError(409, 'case_closed', 'This chat is closed. Start a new complaint to add documents.')
     try:
-        return request.app.state.files.upload("case", case_id, file.filename or "", file.file, file.content_type)
+        return request.app.state.files.upload("case", case_id, file.filename or "", file.file, file.content_type or '')
     except ValueError as exc:
         raise ApiError(422, "invalid_file", str(exc)) from exc
     except OSError as exc:
-        raise ApiError(503, "upload_failed", "Photo upload failed; try again", True) from exc
+        raise ApiError(503, "upload_failed", "Document upload failed; try again", True) from exc

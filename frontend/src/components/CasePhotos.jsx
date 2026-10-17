@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import { api, upload } from '../api/client.js';
+import { api } from '../api/client.js';
+import DocumentUpload from './DocumentUpload.jsx';
+import Icon from './Icon.jsx';
 
 export default function CasePhotos({ caseId }) {
   const [photos, setPhotos] = useState([]);
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const path = `/api/complaints/${encodeURIComponent(caseId)}/documents`;
 
@@ -15,39 +16,14 @@ export default function CasePhotos({ caseId }) {
     return () => controller.abort();
   }, [path]);
 
-  async function savePhoto(event) {
-    event.preventDefault();
-    if (pending) return;
-    const form = event.currentTarget;
-    setPending(true);
-    setError('');
-    try {
-      const saved = await upload(path, new FormData(form));
-      setPhotos((current) => [...current, saved]);
-      form.reset();
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return <section aria-labelledby="case-photos-title">
-    <h2 id="case-photos-title">Case photos</h2>
-    <p className="hint">Optional JPEG or PNG files, up to 5 MB each. Photos are stored privately and are not analyzed by the agent.</p>
-    <form onSubmit={savePhoto}>
-      <fieldset disabled={pending}>
-        <label htmlFor="case-photo">Choose a case photo</label>
-        <input id="case-photo" name="file" type="file" required accept=".jpg,.jpeg,.png,image/jpeg,image/png" />
-        <button className="secondary record-action" type="submit">{pending ? 'Uploading…' : 'Upload photo'}</button>
-      </fieldset>
-    </form>
+  return <section className="case-documents" aria-label="Case documents">
+    <DocumentUpload path={path} onUploaded={(saved) => setPhotos((current) => [...current, saved])} />
     {error ? <p className="error" role="alert">{error}</p> : null}
-    <ul className="record-list">{photos.map((photo) => {
+    <ul className="plain-list">{photos.map((photo) => {
       const contentUrl = `/api/documents/${encodeURIComponent(photo.id)}/content`;
-      return <li key={photo.id}>
+      return <li className="document-row" key={photo.id}><Icon name="file" />
         <a href={contentUrl} target="_blank" rel="noopener noreferrer">{photo.originalName}</a>
-        <img className="document-preview" src={contentUrl} alt={`Stored ${photo.originalName}`} loading="lazy" />
+        {photo.mediaType.startsWith('image/') ? <img className="document-preview" src={contentUrl} alt={`Stored ${photo.originalName}`} loading="lazy" /> : null}
       </li>;
     })}</ul>
   </section>;

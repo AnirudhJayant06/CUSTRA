@@ -1,0 +1,37 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+test.beforeEach(async ({ request }) => { await request.post('http://127.0.0.1:8018/test/reset'); });
+test('mobile shell, nickname fallback, warranty, search and single complaint entry point', async ({ page }, testInfo) => {
+  const auth = JSON.parse(readFileSync('/tmp/custra-e2e-credentials.json', 'utf8'));
+  await page.goto('/login');
+  await page.getByLabel('Username', { exact: true }).fill(auth.username);
+  await page.getByLabel('Password', { exact: true }).fill(auth.password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Active complaints', exact: true })).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).toBeVisible();
+  await nav.getByRole('link', { name: 'Products', exact: true }).click();
+  await page.getByRole('link', { name: 'Add product', exact: true }).click();
+  await page.getByLabel('Product type', { exact: true }).selectOption('smartphone');
+  await page.getByLabel('Brand', { exact: true }).selectOption('samsung');
+  await page.getByText('Purchase & warranty', { exact: false }).click();
+  await page.getByLabel('Purchase date', { exact: true }).fill('2024-02-29');
+  await page.getByLabel('Warranty period', { exact: true }).fill('12');
+  await page.getByRole('button', { name: 'Save product', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Samsung Smartphone', exact: true })).toBeVisible();
+  await expect(page.getByText('Out of warranty', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Register a complaint', exact: true })).toHaveCount(1);
+  await nav.getByRole('link', { name: 'Products', exact: true }).click();
+  await page.getByRole('searchbox').fill('not found');
+  await expect(page.getByText('No matching products.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add product', exact: true })).toBeVisible();
+  await page.getByRole('searchbox').fill('Samsung');
+  await expect(page.getByRole('link', { name: 'Samsung Smartphone', exact: true })).toBeVisible();
+  await page.waitForFunction(() => !document.querySelector('[role="status"]'));
+  expect(await page.locator('.product-grid').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(4);
+  await page.setViewportSize({ width: 320, height: 760 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  expect(await page.locator('.product-grid').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(3);
+  await page.screenshot({ path: testInfo.outputPath('products-320.png'), fullPage: true });
+});

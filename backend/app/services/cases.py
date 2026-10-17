@@ -38,7 +38,7 @@ class CaseService:
         if not 16 <= len(idempotency_key or "") <= 128:
             raise CaseValidationError({"idempotencyKey": "A stable request key is required"})
         try:
-            data = ComplaintInput.model_validate(payload).model_dump()
+            data = ComplaintInput.model_validate(payload).model_dump(mode="json", exclude_none=True)
         except ValidationError as exc:
             raise CaseValidationError({str(item["loc"][-1]): item["msg"] for item in exc.errors()}) from exc
 
@@ -46,6 +46,13 @@ class CaseService:
         replay = self.store.replay_creation(idempotency_key, digest)
         if replay is not None:
             return replay
+
+        if data.get('preferredSlotId'):
+            from app.services.demo_schedule import demo_schedule
+            preference = next((slot for slot in demo_schedule() if slot['id'] == data['preferredSlotId']
+                               and slot['date'] == data['preferredDate'] and slot['available']), None)
+            if not preference:
+                raise CaseValidationError({'preferredSlotId': 'This preferred time is unavailable; choose another'})
 
         profile = self.vault.get_profile()
         missing = {field: "Complete this in Account settings" for field in ("name", "phone", "email")
@@ -67,7 +74,7 @@ class CaseService:
         facts = {
             "profile": copy.deepcopy(profile),
             "product": {**copy.deepcopy(product), "brand": brand["name"] if brand else product.get("brandId"),
-                        "model": product.get("displayName")},
+                        "model": product.get("modelNumber") or (product.get("displayName") if "modelNumber" not in product else f"{category['name'] if category else product.get('categoryId')} (model not recorded)")},
             "address": {**copy.deepcopy(address), "postal_code": address.get("postalCode")},
             "issue": {"summary": data["issueSummary"], "description": data["description"]},
         }

@@ -22,6 +22,7 @@ def emulator_store():
 
 def test_racing_duplicate_creations_produce_one_case():
     store = emulator_store()
+    store.root.collection('products').document('fictional-product').set({'id': 'fictional-product'})
     records = [{"id": uuid.uuid4().hex, "createdAt": "2026-10-16T00:00:00+00:00", "productId": "fictional-product"}
                for _ in range(2)]
     try:
@@ -32,7 +33,7 @@ def test_racing_duplicate_creations_produce_one_case():
         assert results[0]["id"] == results[1]["id"]
         assert len(store.list()) == 1
     finally:
-        for collection in ("cases", "creation_keys"):
+        for collection in ("cases", "creation_keys", "products"):
             for snapshot in store.root.collection(collection).stream():
                 snapshot.reference.delete()
 

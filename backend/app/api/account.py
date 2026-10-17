@@ -38,3 +38,17 @@ def update_address(address_id: str, changes: dict, request: Request):
         raise ApiError(404, "not_found", "Address not found") from exc
     except ValueError as exc:
         raise ApiError(422, "invalid_input", str(exc)) from exc
+
+
+@router.put('/profile/default-address/{address_id}')
+def set_default_address(address_id: str, request: Request):
+    try:
+        return request.app.state.vault.set_default_address(address_id)
+    except LookupError as exc:
+        raise ApiError(404, 'not_found', 'Address not found') from exc
+
+
+@router.get('/availability')
+def availability():
+    from app.services.demo_schedule import demo_schedule
+    return {'slots': demo_schedule(), 'simulated': True, 'timezone': 'Asia/Kolkata'}

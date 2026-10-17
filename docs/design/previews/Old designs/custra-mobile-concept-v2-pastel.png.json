@@ -1,0 +1,16 @@
+{
+  "approved": false,
+  "kind": "pastel theme revision of static UI concept",
+  "prompt": "Edit the supplied Custra three-screen mobile UI concept board (reference image 1). Reference image 2 is the original Custra brand logo. The user rejects the saturated electric-blue palette and wants a VERY MINIMAL, CALM PASTEL visual direction. Preserve the established UI layout, all screen content, the three screen arrangement, bottom navigation Home/Products/Appointments, the exact FOUR-column Products grid, chat roles and button positions. This is a theme revision, not a layout redesign.\n\nUse warm ivory and white surfaces, muted mist blue and pale sage tonal fills, whisper-light neutral borders, and dark desaturated charcoal/slate typography. Replace ALL electric blue actions, progress lines, icons, links and active nav accents with restrained desaturated eucalyptus/blue-gray tones. Primary action buttons should have pale sage backgrounds with dark evergreen/slate labels and icons, clearly visible against ivory; never use white text on pale pastel. Secondary actions use dark muted teal. Dark text remains readable, not washed-out gray. Selected states still clear. Status chips muted peach with dark brown text or mist blue with dark slate text. Consumer chat bubbles very pale sage, business bubbles white. Reduce the visual weight of headings subtly, use quiet refined spacing and flat surfaces, minimal shadows. Avoid full-screen colorful washes and gradients on backgrounds. The overall impression is gentle premium utility, warm, reassuring, quiet, not a candy app, not neon, not dark mode.\n\nRecolor the Custra logo in every screen to match: preserve the recognizable folded C/ribbon/eye symbol structure, inner cutout and dot, geometry and orientation; recolor blue/cyan sections to soft sage, dusty mist blue and muted teal with only very gentle tonal shading. Preserve wordmark letters and shape, recolor to dark charcoal/slate. No new logo symbol, no structural change, no additional tagline. Keep the logo compact. All repeated icons should use the same restrained new palette.\n\nMaintain the outer presentation board clean warm offwhite, with readable external labels Home, Products, Agent conversation. Render the complete three screens in crisp high resolution. No photographs or extra decorations, apart from existing profile avatars. Keep copy and product identities unchanged. This must visibly feel significantly softer and less saturated than reference 1 while preserving contrast for readability.",
+  "references": [
+    "custra-mobile-concept-v1.png",
+    "user supplied Custra logo"
+  ],
+  "notes": [
+    "User requested minimal pastel theme and logo recoloring with original structure preserved.",
+    "Generated logo treatment is a visual proposal; not a pixel-verified production logo.",
+    "Layout and four-column grid retained; no application code changed."
+  ],
+  "theme_approved": true,
+  "approval_scope": "User approved pastel theme; requested simpler structure afterward."
+}

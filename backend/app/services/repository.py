@@ -45,14 +45,19 @@ class FirestoreVaultStore:
         self.project_id = project_id
         self.namespace = namespace
         self._root = None
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            from google.cloud import firestore
+            self._client = firestore.Client(project=self.project_id or None)
+        return self._client
 
     @property
     def root(self):
         if self._root is None:
-            from google.cloud import firestore
-
-            client = firestore.Client(project=self.project_id or None)
-            self._root = client.collection("custra_demo").document(self.namespace)
+            self._root = self.client.collection("custra_demo").document(self.namespace)
         return self._root
 
     def seed_demo_address(self, record: dict) -> None:
@@ -88,7 +93,18 @@ class FirestoreVaultStore:
         return snapshot.to_dict() if snapshot.exists else None
 
     def save_product(self, record: dict) -> None:
-        self.root.collection("products").document(record["id"]).set(record)
+        from google.cloud import firestore
+
+        ref = self.root.collection("products").document(record["id"])
+
+        @firestore.transactional
+        def save(transaction):
+            previous = ref.get(transaction=transaction).to_dict()
+            if previous and previous.get('deletedAt'):
+                raise LookupError('Product not found')
+            transaction.set(ref, record)
+
+        save(self.client.transaction())
 
 
 class FirestoreDocumentStore:
@@ -146,11 +162,63 @@ class FirestoreCaseStore:
                 if saved["payloadHash"] != digest:
                     raise IdempotencyConflict("Request key already used for different details")
                 return saved["response"]
+            # Serialize creation against deletion using the same product read.
+            product = self.root.collection('products').document(record['productId']).get(transaction=transaction).to_dict()
+            if not product or product.get('deletedAt'):
+                from app.services.leases import CaseConflict
+                raise CaseConflict('Product was removed; choose another product')
             transaction.create(case_ref, record)
             transaction.create(key_ref, {"payloadHash": digest, "caseId": record["id"], "response": record})
             return record
 
         return create(self.client.transaction())
+
+    def delete_product(self, product_id: str) -> dict:
+        """Remove from the vault and close active cases in one transaction.
+
+        Tombstones retain historical case/document references. Version changes
+        reject stale agent/booking commits through the existing lease checks.
+        """
+        from datetime import timezone
+        from google.cloud import firestore
+        from google.cloud.firestore_v1.base_query import FieldFilter
+        from app.services.leases import CaseConflict
+
+        ref = self.root.collection('products').document(product_id)
+
+        @firestore.transactional
+        def remove(transaction):
+            product = ref.get(transaction=transaction).to_dict()
+            if not product:
+                raise LookupError('Product not found')
+            if product.get('deletedAt'):
+                return {'id': product_id, 'deleted': True, 'closedComplaints': 0}
+            query = self.root.collection('cases').where(filter=FieldFilter('productId', '==', product_id))
+            cases = [snapshot for snapshot in query.stream(transaction=transaction)
+                     if snapshot.to_dict()['status'] != 'CLOSED']
+            # Two writes per active case plus one product tombstone.
+            if len(cases) > 200:
+                raise CaseConflict('Too many active complaints to delete this product at once')
+            now = datetime.now(timezone.utc).isoformat()
+            transaction.update(ref, {'deletedAt': now, 'updatedAt': now})
+            for snapshot in cases:
+                case = snapshot.to_dict()
+                sequence = case.get('eventSequence', 0) + 1
+                transaction.update(snapshot.reference, {
+                    'status': 'CLOSED', 'closureReason': 'product_deleted',
+                    'closedAt': now, 'updatedAt': now,
+                    'currentVersion': case['currentVersion'] + 1, 'eventSequence': sequence,
+                    'pendingSlotId': None, 'error': None, 'recoveryPhase': None,
+                })
+                event_id = f"{case['id']}-product-deletion"
+                transaction.set(snapshot.reference.collection('events').document(event_id), {
+                    'eventId': event_id, 'sequence': sequence, 'role': 'user',
+                    'displayText': 'Complaint closed because the product was deleted.',
+                    'simulated': False, 'createdAt': now,
+                })
+            return {'id': product_id, 'deleted': True, 'closedComplaints': len(cases)}
+
+        return remove(self.client.transaction())
 
     def replay_creation(self, key: str, digest: str) -> dict | None:
         import hashlib

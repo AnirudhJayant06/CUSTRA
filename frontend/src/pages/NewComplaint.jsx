@@ -1,97 +1,73 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-
 import { api } from '../api/client.js';
+import useLoad from '../lib/useLoad.js';
 import AddressDialog from '../components/AddressDialog.jsx';
-
+import Modal from '../components/Modal.jsx';
+import SchedulePicker, { slotDate } from '../components/SchedulePicker.jsx';
+import Icon from '../components/Icon.jsx';
+import { dateLabel, slotLabel } from '../lib/domain.js';
 export default function NewComplaint() {
   const [params] = useSearchParams();
-  const [products, setProducts] = useState([]);
+  const { data, error: loadError } = useLoad(['/api/products', '/api/addresses', '/api/profile', '/api/availability']);
+  const [products = [], initialAddresses = [], savedProfile, availability = { slots: [] }] = data || [];
   const [addresses, setAddresses] = useState([]);
   const [profile, setProfile] = useState(null);
-  const [productId, setProductId] = useState(params.get('productId') || '');
-  const [addressId, setAddressId] = useState('');
-  const [issueSummary, setSummary] = useState('');
+  const [productId, setProduct] = useState(params.get('productId') || '');
+  const [addressId, setAddress] = useState('');
   const [description, setDescription] = useState('');
-  const [showAddress, setShowAddress] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [preference, setPreference] = useState(null);
+  const [dialog, setDialog] = useState('');
+  const [editingAddress, setEditingAddress] = useState(false);
   const [error, setError] = useState('');
+  const [pending, setPending] = useState(false);
   const operation = useRef(null);
   const inFlight = useRef(false);
   const navigate = useNavigate();
-
   useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([
-      api('/api/products', { signal: controller.signal }),
-      api('/api/addresses', { signal: controller.signal }),
-      api('/api/profile', { signal: controller.signal }),
-    ]).then(([savedProducts, savedAddresses, savedProfile]) => {
-      if (controller.signal.aborted) return;
-      setProducts(savedProducts);
-      setAddresses(savedAddresses);
-      setProfile(savedProfile);
-      setAddressId((current) => current || savedProfile.defaultAddressId || savedAddresses[0]?.id || '');
-    }).catch((failure) => { if (failure.name !== 'AbortError') setError(failure.message); });
-    return () => controller.abort();
-  }, []);
-
+    if (!data) return;
+    setAddresses(initialAddresses); setProfile(savedProfile);
+    setAddress((value) => value || savedProfile.defaultAddressId || initialAddresses[0]?.id || '');
+    setProduct((value) => value || (products.length === 1 ? products[0].id : ''));
+  }, [data]);
+  const selectedProduct = products.find((p) => p.id === productId);
+  const selectedAddress = addresses.find((a) => a.id === addressId);
+  const profileReady = profile && ['name', 'phone', 'email'].every((f) => profile[f]?.trim());
   async function submit(event) {
-    event.preventDefault();
-    if (inFlight.current) return;
-    const body = { productId, addressId, issueSummary: issueSummary.trim(), description: description.trim() };
+    event.preventDefault(); if (inFlight.current) return;
+    if (!profileReady) { setDialog('phone'); setError('Complete your contact details to continue.'); return; }
+    const body = { productId, addressId, description: description.trim(), preferredDate: preference ? slotDate(preference) : null, preferredSlotId: preference?.id || null };
     const fingerprint = JSON.stringify(body);
-    if (!operation.current || operation.current.fingerprint !== fingerprint) {
-      operation.current = { fingerprint, key: crypto.randomUUID() };
-    }
-    inFlight.current = true;
-    setPending(true);
-    setError('');
+    if (operation.current?.fingerprint !== fingerprint) operation.current = { fingerprint, key: crypto.randomUUID() };
+    inFlight.current = true; setPending(true); setError('');
     try {
-      const saved = await api('/api/complaints', { method: 'POST', body,
-        headers: { 'Idempotency-Key': operation.current.key } });
+      const saved = await api('/api/complaints', { method: 'POST', body, headers: { 'Idempotency-Key': operation.current.key } });
       navigate(`/complaints/${saved.id}`);
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      inFlight.current = false;
-      setPending(false);
-    }
+    } catch (failure) { setError(Object.values(failure.fieldErrors || {}).join(' ') || failure.message); } finally { inFlight.current = false; setPending(false); }
   }
-
-  const profileReady = profile && ['name', 'phone', 'email'].every((field) => profile[field]?.trim());
-
-  return (
-    <section className="form-card">
-      <h1>Start a complaint</h1>
-      <p className="hint">The Consumer Agent will answer a simulated business using your saved details.</p>
-      {!profileReady ? <p>Complete your name, phone and email in <Link to="/account">Account settings</Link> before starting.</p> : null}
-      <form onSubmit={submit}>
-        <fieldset disabled={pending || !profileReady}>
-          <label htmlFor="complaint-product">Saved product</label>
-          <select id="complaint-product" value={productId} onChange={(event) => setProductId(event.target.value)} required>
-            <option value="">Choose a product</option>
-            {products.map((product) => <option key={product.id} value={product.id}>{product.displayName}</option>)}
-          </select>
-          <label htmlFor="complaint-address">Service address</label>
-          <select id="complaint-address" value={addressId} onChange={(event) => setAddressId(event.target.value)} required>
-            <option value="">Choose an address</option>
-            {addresses.map((address) => <option key={address.id} value={address.id}>{address.label} — {address.line1}</option>)}
-          </select>
-          <button className="secondary record-action" type="button" onClick={() => setShowAddress(true)}>Add address</button>
-          <label htmlFor="issue-summary">Issue summary</label>
-          <input id="issue-summary" value={issueSummary} onChange={(event) => setSummary(event.target.value)} required maxLength={120} />
-          <label htmlFor="issue-description">Issue description</label>
-          <textarea id="issue-description" value={description} onChange={(event) => setDescription(event.target.value)} required maxLength={2000} rows={5} />
-          <button className="submit" type="submit">{pending ? 'Starting…' : 'Start complaint'}</button>
-        </fieldset>
-        {error ? <p className="error" role="alert">{error}</p> : null}
-      </form>
-      {showAddress ? <AddressDialog onClose={() => setShowAddress(false)} onSaved={(address) => {
-        setAddresses((current) => [...current, address]);
-        setAddressId(address.id);
-        setShowAddress(false);
-      }} /> : null}
-    </section>
-  );
+  async function saveContact(e) {
+    e.preventDefault(); const form = new FormData(e.currentTarget); setPending(true); setError('');
+    const body = Object.fromEntries(['name', 'phone', 'email'].map((f) => [f, String(form.get(f) || profile[f] || '').trim()]));
+    try { const saved = await api('/api/profile', { method: 'PATCH', body }); setProfile(saved); setDialog(''); }
+    catch (e) { setError(e.message); } finally { setPending(false); }
+  }
+  if (!data) return <p role={loadError ? 'alert' : 'status'}>{loadError || 'Loading your saved details…'}</p>;
+  return <section className="page intake-page"><Link className="back-link" to={selectedProduct ? `/products/${productId}` : '/'}>← Back</Link><h1>Register complaint</h1>
+    {!products.length ? <div className="empty-state"><p>Add a product before registering a complaint.</p><Link className="primary" to="/products/new">Add product</Link></div> : <form onSubmit={submit}><fieldset disabled={pending}>
+      <label htmlFor="complaint-product">Saved product</label><select id="complaint-product" required value={productId} onChange={(e) => setProduct(e.target.value)}><option value="">Choose a product</option>{products.map((p) => <option key={p.id} value={p.id}>{p.displayName}</option>)}</select>
+      <label htmlFor="description">What’s wrong?</label><textarea id="description" required maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="For example, the screen stays black when I switch it on." />
+      <div className="slim-fields">
+        <button type="button" className="slim-row" onClick={() => setDialog('address')}><Icon name="pin" /><span><strong>Service address</strong><small>{selectedAddress ? `${selectedAddress.label} · ${selectedAddress.city}` : 'Choose an address'}</small></span><Icon name="arrow" /></button>
+        <button type="button" className="slim-row" onClick={() => setDialog('phone')}><Icon name="phone" /><span><strong>Phone number</strong><small>{profile?.phone ? `••••••${profile.phone.slice(-4)}` : 'Add contact details'}</small></span><Icon name="arrow" /></button>
+        <button type="button" className="slim-row" onClick={() => setDialog('date')}><Icon name="calendar" /><span><strong>Preferred date</strong><small>{preference ? dateLabel(slotDate(preference)) : 'Choose a date (optional)'}</small></span><Icon name="arrow" /></button>
+        <button type="button" className="slim-row" onClick={() => setDialog('time')}><Icon name="clock" /><span><strong>Preferred time</strong><small>{preference ? slotLabel(preference) : 'Choose a time (optional)'}</small></span><Icon name="arrow" /></button>
+      </div><p className="hint">Preferred slot, subject to confirmation. Business support is simulated.</p>{preference ? <button type="button" className="text-button" onClick={() => setPreference(null)}>Clear preference</button> : null}
+      {!profileReady ? <p className="hint">Complete your contact details using the Phone number row.</p> : null}
+      {error ? <p className="error" role="alert">{error}</p> : null}<button className="primary full" disabled={!productId || !addressId}>{pending ? 'Registering…' : 'Register complaint'}</button>
+    </fieldset></form>}
+    {['date', 'time'].includes(dialog) ? <SchedulePicker initialMode={dialog === 'time' && preference ? 'time' : 'date'} slots={availability.slots} initialSlotId={preference?.id} onClose={() => setDialog('')} onSelect={(s) => { setPreference(s); setDialog(''); }} /> : null}
+    {dialog === 'address' ? <Modal title="Service address" onClose={() => setDialog('')}><ul className="plain-list">{addresses.map((a) => <li key={a.id}><button className="slim-row" onClick={() => { setAddress(a.id); setDialog(''); }}><span><strong>{a.label}</strong><small>{a.line1}, {a.city}</small></span>{a.id === addressId ? <Icon name="check" /> : <Icon name="arrow" />}</button></li>)}</ul><button className="secondary" onClick={() => { setDialog(''); setEditingAddress(true); }}>Add address</button></Modal> : null}
+    {editingAddress ? <AddressDialog onClose={() => setEditingAddress(false)} onSaved={(a) => { setAddresses((current) => [...current, a]); setAddress(a.id); setEditingAddress(false); }} /> : null}
+    {dialog === 'phone' ? <Modal title={profileReady ? 'Phone number' : 'Contact details'} onClose={() => setDialog('')} busy={pending}><form onSubmit={saveContact}><fieldset disabled={pending}>{!profileReady ? <><label htmlFor="inline-name">Full name</label><input id="inline-name" name="name" required defaultValue={profile?.name} maxLength={120} /><label htmlFor="inline-email">Email</label><input id="inline-email" name="email" type="email" required defaultValue={profile?.email} maxLength={254} /></> : null}<label htmlFor="inline-phone">Phone number</label><input id="inline-phone" name="phone" type="tel" required defaultValue={profile?.phone} maxLength={40} />{error ? <p className="error" role="alert">{error}</p> : null}<button className="primary full">{pending ? 'Saving…' : 'Save details'}</button></fieldset></form></Modal> : null}
+  </section>;
 }

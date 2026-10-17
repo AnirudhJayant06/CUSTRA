@@ -1,0 +1,203 @@
+{
+  "scope": "Curated India-market suggestions, not an exhaustive catalog. Model names are used when no exact regional code was verified.",
+  "models": [
+    {
+      "categoryId": "smartphone",
+      "brandId": "oneplus",
+      "name": "OnePlus 13",
+      "number": "CPH2649",
+      "source": "https://www.oneplus.in/oneplus-easy-upgrades/terms-and-conditions",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "smartphone",
+      "brandId": "oneplus",
+      "name": "OnePlus 13R",
+      "number": "OnePlus 13R",
+      "source": "https://www.oneplus.in/press/press-release/oneplus-launches-new-flagship-series-oneplus-13-and-oneplus-13r",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "smartphone",
+      "brandId": "apple",
+      "name": "iPhone 16",
+      "number": "iPhone 16",
+      "source": "https://www.apple.com/in/iphone-16/specs/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "smartphone",
+      "brandId": "samsung",
+      "name": "Galaxy S24",
+      "number": "SM-S921B/DS",
+      "source": "https://www.samsung.com/in/support/model/SM-S921BZKCINS/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "smartphone",
+      "brandId": "google",
+      "name": "Pixel 9",
+      "number": "Pixel 9",
+      "source": "https://store.google.com/in/magazine/pixel-9-phone-comparison?hl=en-IN",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "smartphone",
+      "brandId": "google",
+      "name": "Pixel 9 Pro",
+      "number": "Pixel 9 Pro",
+      "source": "https://store.google.com/in/magazine/pixel-9-phone-comparison?hl=en-IN",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "smartphone",
+      "brandId": "google",
+      "name": "Pixel 9 Pro XL",
+      "number": "Pixel 9 Pro XL",
+      "source": "https://store.google.com/in/magazine/pixel-9-phone-comparison?hl=en-IN",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "laptop",
+      "brandId": "dell",
+      "name": "Inspiron 15 3530",
+      "number": "3530",
+      "source": "https://www.dell.com/en-in/shop/laptop-notebook-computers/inspiron-15-laptop/spd/inspiron-15-3530-laptop",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "laptop",
+      "brandId": "apple",
+      "name": "MacBook Air 13-inch M3 (2024)",
+      "number": "MacBook Air 13-inch M3 (2024)",
+      "source": "https://support.apple.com/en-in/118551",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "television",
+      "brandId": "samsung",
+      "name": "Q60D 55-inch",
+      "number": "QA55Q60DAULXL",
+      "source": "https://www.samsung.com/in/support/model/QA55Q60DAULXL/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "television",
+      "brandId": "samsung",
+      "name": "Q60D 65-inch",
+      "number": "QA65Q60DAULXL",
+      "source": "https://www.samsung.com/in/tvs/qled-tv/q60d-65-inch-qled-4k-tizen-os-smart-tv-qa65q60daulxl/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "television",
+      "brandId": "samsung",
+      "name": "Q70D 55-inch",
+      "number": "QA55Q70DAULXL",
+      "source": "https://www.samsung.com/in/tvs/qled-tv/q70d-55-inch-qled-4k-tizen-os-smart-tv-qa55q70daulxl/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "washing-machine",
+      "brandId": "lg",
+      "name": "8 kg front load",
+      "number": "FHP1208Z5M",
+      "source": "https://www.lg.com/in/laundry/front-loading-washing-machines/fhp1208z5m/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "refrigerator",
+      "brandId": "samsung",
+      "name": "236 L convertible double door",
+      "number": "RT28C3732S8/HL",
+      "source": "https://www.samsung.com/in/support/model/RT28C3732S8/HL/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "air-conditioner",
+      "brandId": "daikin",
+      "name": "Premium Series 1 ton",
+      "number": "FTKM35XV",
+      "source": "https://daikinindia.com/product-category/splitac/premium-series/FKTM35XV",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "microwave",
+      "brandId": "samsung",
+      "name": "23 L solo microwave",
+      "number": "MS23K3513AK/TL",
+      "source": "https://www.samsung.com/in/support/model/MS23K3513AK/TL/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "dishwasher",
+      "brandId": "bosch",
+      "name": "Series 6 dishwasher",
+      "number": "SMS6HMI00I",
+      "source": "https://www.bosch-home.in/en/product/dishwashers/free-standing-dishwashers/free-standing-dishwashers-with-60cm-width/SMS6HMI00I",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "printer",
+      "brandId": "epson",
+      "name": "EcoTank L3250",
+      "number": "L3250",
+      "source": "https://www.epson.co.in/Support/Printers/All-In-One/L-Series/Epson-L3250/s/SPT_C11CJ67508",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "water-purifier",
+      "brandId": "ao-smith",
+      "name": "X2 Neo",
+      "number": "X2 Neo",
+      "source": "https://www.aosmithindia.com/product/buy-x2-neo-smart-water-purifiers-online-a-o-smith-india/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "water-purifier",
+      "brandId": "ao-smith",
+      "name": "X2 Neo+",
+      "number": "X2 Neo+",
+      "source": "https://www.aosmithindia.com/product-category/water-purifier/",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "vacuum-cleaner",
+      "brandId": "dyson",
+      "name": "V8 Absolute",
+      "number": "V8 Absolute",
+      "source": "https://www.dyson.in/vacuum-cleaners/cord-free/dyson-v8/technology",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    },
+    {
+      "categoryId": "speaker",
+      "brandId": "jbl",
+      "name": "Flip 6",
+      "number": "Flip 6",
+      "source": "https://in.jbl.com/FLIP-6-.html",
+      "checkedOn": "2026-10-17",
+      "market": "IN"
+    }
+  ]
+}

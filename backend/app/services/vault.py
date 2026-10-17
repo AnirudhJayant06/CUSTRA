@@ -1,8 +1,9 @@
 """Validation and storage of shared demo profile, addresses and products."""
 
+import calendar
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from app.models.account import AddressInput, ProfileInput
@@ -21,7 +22,9 @@ class VaultService:
         self.store = store
 
     def catalog(self) -> dict:
-        return json.loads((DATA_DIR / "catalog.json").read_text())
+        catalog = json.loads((DATA_DIR / "catalog.json").read_text())
+        catalog['models'] = json.loads((DATA_DIR / 'product_models.json').read_text())['models']
+        return catalog
 
     def service_centers(self) -> dict:
         return json.loads((DATA_DIR / "service_centers.json").read_text())
@@ -41,6 +44,14 @@ class VaultService:
         previous = self.store.get_profile() or {}
         profile.update({"defaultAddressId": previous.get("defaultAddressId", "demo-address"),
                         "updatedAt": timestamp()})
+        self.store.save_profile(profile)
+        return profile
+
+    def set_default_address(self, address_id: str) -> dict:
+        self.seed_demo_address()
+        self.get_address(address_id)
+        profile = self.get_profile()
+        profile.update(defaultAddressId=address_id, updatedAt=timestamp())
         self.store.save_profile(profile)
         return profile
 
@@ -73,11 +84,11 @@ class VaultService:
         return record
 
     def list_products(self) -> list[dict]:
-        return self.store.list_products()
+        return [record for record in self.store.list_products() if not record.get('deletedAt')]
 
     def get_product(self, id: str) -> dict:
         result = self.store.get_product(id)
-        if not result:
+        if not result or result.get('deletedAt'):
             raise LookupError("Product not found")
         return result
 
@@ -86,6 +97,18 @@ class VaultService:
         category = next((x for x in self.catalog()["categories"] if x["id"] == product["categoryId"]), None)
         if not category or product["brandId"] not in {x["id"] for x in category["brands"]}:
             raise ValueError("Choose a brand from the selected category")
+        product['modelNumber'] = product['modelNumber'] or None
+        brand = next(x for x in category['brands'] if x['id'] == product['brandId'])
+        if product['nickname'] is not None:
+            product['displayName'] = product['nickname'] or f"{brand['name']} {category['name']}"
+        elif not product['displayName']:
+            product['displayName'] = f"{brand['name']} {category['name']}"
+        if product['purchaseDate'] and product['warrantyMonths']:
+            start = date.fromisoformat(product['purchaseDate'])
+            months = start.year * 12 + start.month - 1 + product['warrantyMonths']
+            year, month = divmod(months, 12)
+            month += 1
+            product['warrantyExpiry'] = date(year, month, min(start.day, calendar.monthrange(year, month)[1])).isoformat()
         return product
 
     def create_product(self, payload: dict) -> dict:
@@ -98,6 +121,12 @@ class VaultService:
         existing = self.get_product(id)
         data = {key: existing.get(key) for key in ProductInput.model_fields}
         data.update(changes)
+        if any(key in changes and changes[key] != existing.get(key) for key in ('categoryId', 'brandId')) and 'modelNumber' not in changes:
+            data['modelNumber'] = None
+        if 'displayName' in changes and 'nickname' not in changes:
+            data['nickname'] = None
+        if ('purchaseDate' in changes or 'warrantyMonths' in changes) and existing.get('warrantyMonths'):
+            data['warrantyExpiry'] = None
         record = self._validate_product(data)
         record.update({"id": id, "createdAt": existing["createdAt"], "updatedAt": timestamp()})
         self.store.save_product(record)

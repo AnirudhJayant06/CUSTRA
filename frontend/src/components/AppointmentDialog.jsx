@@ -1,31 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 
+import Modal from './Modal.jsx';
 import { api } from '../api/client.js';
 
 export const formatSlot = (value) => new Intl.DateTimeFormat('en-IN', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata',
 }).format(new Date(value));
 
-export default function AppointmentDialog({ caseId, pendingSlotId, onClose, onUpdated }) {
-  const dialog = useRef(null);
+export default function AppointmentDialog({ caseId, pendingSlotId, preferredSlotId, onClose, onUpdated }) {
   const requestKey = useRef(crypto.randomUUID());
   const [slots, setSlots] = useState([]);
-  const [selected, setSelected] = useState(pendingSlotId || '');
+  const selectedId = pendingSlotId || preferredSlotId;
+  const selected = slots.find((s) => s.id === selectedId) || (!selectedId ? slots[0] : null);
+  const [loaded, setLoaded] = useState(false);
   const [locked, setLocked] = useState(Boolean(pendingSlotId));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const path = `/api/complaints/${encodeURIComponent(caseId)}`;
 
   useEffect(() => {
-    const previous = document.activeElement;
-    const element = dialog.current;
-    element.showModal();
-    return () => { element.close(); previous?.focus(); };
-  }, []);
-
-  useEffect(() => {
     const controller = new AbortController();
-    api(`${path}/slots`, { signal: controller.signal }).then(setSlots)
+    api(`${path}/slots`, { signal: controller.signal }).then((choices) => { setSlots(choices); setLoaded(true); })
       .catch((failure) => { if (failure.name !== 'AbortError') setError(failure.message); });
     return () => controller.abort();
   }, [path]);
@@ -37,7 +32,7 @@ export default function AppointmentDialog({ caseId, pendingSlotId, onClose, onUp
     setLocked(true);
     setError('');
     try {
-      const updated = await api(`${path}/appointment`, { method: 'POST', body: { slotId: selected },
+      const updated = await api(`${path}/appointment`, { method: 'POST', body: { slotId: selected.id },
         headers: { 'Idempotency-Key': requestKey.current } });
       onUpdated(updated);
       if (updated.status === 'BOOKED') onClose();
@@ -59,25 +54,12 @@ export default function AppointmentDialog({ caseId, pendingSlotId, onClose, onUp
     }
   }
 
-  return <dialog className="dialog-card appointment-dialog" ref={dialog} aria-labelledby="appointment-title"
-    onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}>
-    <h2 id="appointment-title">Choose an appointment</h2>
-    <p>Simulated availability · All times in IST (Asia/Kolkata).</p>
-    <form onSubmit={submit}>
-      <fieldset disabled={pending}>
-        <legend>Available dated slots</legend>
-        {slots.map((slot) => <label className="slot-option" key={slot.id}>
-          <input type="radio" name="slot" value={slot.id} checked={selected === slot.id}
-            disabled={locked && selected !== slot.id} onChange={() => setSelected(slot.id)} />
-          {formatSlot(slot.start)} – {new Intl.DateTimeFormat('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(slot.end))}
-        </label>)}
-        {!slots.length && !error ? <p role="status">Loading slots…</p> : null}
-        {error ? <p className="error" role="alert">{error}</p> : null}
-        <div className="dialog-actions">
-          <button className="secondary" type="button" onClick={onClose}>Choose later</button>
-          <button className="submit" type="submit" disabled={!selected}>{pending ? 'Confirming…' : locked ? 'Retry confirmation' : 'Confirm appointment'}</button>
-        </div>
-      </fieldset>
-    </form>
-  </dialog>;
+  return <Modal title="Confirm technician visit" onClose={onClose} busy={pending} dismissOnBackdrop className="appointment-dialog">
+    <p className="hint">Simulated visit · All times IST.</p>
+    <form onSubmit={submit}><fieldset disabled={pending}>
+      {selected && loaded ? <div className="visit-summary"><strong>{formatSlot(selected.start)}</strong></div> : <p>{loaded ? 'Your preferred time is unavailable. Close this window and try again later.' : 'Loading visit time…'}</p>}
+      {error ? <p className="error" role="alert">{error}</p> : null}
+      <div className="dialog-actions"><button className="primary full" type="submit" disabled={!selected || !loaded}>{pending ? 'Confirming…' : locked ? 'Retry confirmation' : 'Confirm visit'}</button></div>
+    </fieldset></form>
+  </Modal>;
 }

@@ -1,0 +1,11 @@
+{
+  "approved": false,
+  "theme_approved": true,
+  "base_composition_approved": true,
+  "prompt": "Make ONE precise addition to the supplied Custra minimal three-screen mobile UI board. Reference image 1 is the approved minimal composition and pastel theme. Reference image 2 shows the exact section the user requests adding back.\n\nKEEP the Home screen and Agent conversation screen completely unchanged. KEEP the Products header, search, FOUR-COLUMN two-row product grid, colors, icons, spacing and bottom navigation unchanged. Only use the existing whitespace BELOW the Products grid and ABOVE bottom navigation to add ONE compact \"Continue where you left off\" section matching reference image 2.\n\nPlace a subtle short neutral horizontal divider above the section, heading exactly 'Continue where you left off', and a single modest rounded white card with a very light border. Inside the card: small TV icon on pale neutral square at left, 'Living room TV' bold, 'Screen won’t turn on' secondary text, '#DEMO-1042 · 17 Oct' in small metadata, 'View complaint →' in muted dark teal. One subtle right chevron on the card as shown in reference image 2. Keep card restrained and compact, no tall banner, no information paragraph, no extra CTA. Existing top product grid MUST remain exactly FOUR columns, eight tiles total with Add product first. The added section is the only change to the board.\n\nPreserve approved warm ivory, muted sage, mist blue, dark slate/navy readable text and original folded-C Custra logo structure with soft sage/teal coloring. Do not bring back bright blue. Preserve all text and fictional content on the other two screens. Deliver the complete three-screen board at high resolution, same overall framing and proportions as reference 1.",
+  "notes": [
+    "User approved v3 with single requested resume-card addition; this render implements that design request.",
+    "Latest board has not separately been reviewed.",
+    "Static mockup; no app changes."
+  ]
+}

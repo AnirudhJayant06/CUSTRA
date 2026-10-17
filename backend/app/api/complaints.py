@@ -21,6 +21,8 @@ def create_complaint(payload: dict, request: Request,
         raise ApiError(422, "invalid_input", str(exc), field_errors=exc.field_errors) from exc
     except IdempotencyConflict as exc:
         raise ApiError(409, "idempotency_conflict", "This request key was used with different details") from exc
+    except CaseConflict as exc:
+        raise ApiError(409, 'case_conflict', str(exc), True) from exc
 
 
 @router.get("")

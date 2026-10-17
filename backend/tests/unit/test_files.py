@@ -134,3 +134,30 @@ async def test_authorized_document_upload_and_private_stream():
         assert content.headers["x-content-type-options"] == "nosniff"
         assert content.headers["content-disposition"].startswith("attachment;")
         assert content.headers["cache-control"] == "private, no-store"
+
+
+@pytest.mark.asyncio
+async def test_case_documents_support_pdf_and_reject_uploads_after_closure():
+    class Sessions:
+        def get(self, digest):
+            return {'expires_at': datetime.now(timezone.utc) + timedelta(hours=1), 'revoked': False}
+
+    class Cases:
+        status = 'BOOKED'
+        def get(self, id): return {'id': id, 'status': self.status}
+
+    records = FakeDocuments()
+    app = create_app(settings=Settings(secure_cookies=False), session_store=Sessions(),
+                     file_store=records, file_bucket=FakeBucket())
+    app.state.cases = Cases()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://api.test') as client:
+        client.cookies.set('__session', 'fictional-session')
+        uploaded = await client.post('/api/complaints/case-1/documents', files={'file': ('invoice.pdf', PDF, 'application/pdf')})
+        assert uploaded.status_code == 200
+        app.state.cases.status = 'CLOSED'
+        for name, content, mime in [('photo.png', PNG, 'image/png'), ('invoice.pdf', PDF, 'application/pdf')]:
+            rejected = await client.post('/api/complaints/case-1/documents', files={'file': (name, content, mime)})
+            assert rejected.status_code == 409
+        assert len(records.rows) == 1
+        assert (await client.get('/api/complaints/case-1/documents')).json()[0]['id'] == uploaded.json()['id']
+        assert (await client.get(f"/api/documents/{uploaded.json()['id']}/content")).content == PDF

@@ -56,7 +56,7 @@ def test_four_supported_questions_register_once_and_offer_future_slots():
         response = business.exchange(payload, "context-1")
     assert response["reference"].startswith("DEMO-")
     assert response["next_stage"] == "registered"
-    assert len(response["slots"]) == 6
+    assert len(response["slots"]) == 42
     assert BusinessService(store).exchange(payload, "context-1") == response
 
 

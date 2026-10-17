@@ -1,55 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-
 import { api } from '../api/client.js';
-
+import Brand from '../components/Brand.jsx';
 export default function Login({ onSuccess }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
-
-  async function submit(event) {
-    event.preventDefault();
-    if (pending) return;
-    const fields = new FormData(event.currentTarget);
-    setPending(true);
-    setError('');
-    try {
-      await api('/api/auth/login', { method: 'POST', body: {
-        username: String(fields.get('username') || ''),
-        password: String(fields.get('password') || ''),
-      } });
-      onSuccess();
-      navigate('/', { replace: true });
-    } catch (failure) {
-      setError(failure.message || 'Could not sign in. Try again.');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <div className="shell">
-      <header className="brand"><span className="brand-mark" aria-hidden="true">c.</span><span>custra<span className="brand-dot">.</span></span><span className="demo-label">DEMO</span></header>
-      <main>
-        <section className="intro" aria-labelledby="login-title">
-          <p className="eyebrow">WELCOME TO CUSTRA</p>
-          <h1 id="login-title">Sign in to the demo.</h1>
-          <p className="intro-copy">This is a shared demo workspace. Use fictional information only.</p>
-        </section>
-        <section className="form-card" aria-label="Demo sign in">
-          <form onSubmit={submit}>
-            <fieldset disabled={pending}>
-              <label htmlFor="username">Username</label>
-              <input id="username" name="username" autoComplete="username" required />
-              <label htmlFor="password">Password</label>
-              <input id="password" name="password" type="password" autoComplete="current-password" required />
-              <button className="submit" type="submit">{pending ? 'Signing in…' : 'Sign in'}</button>
-            </fieldset>
-            {error ? <p className="error response" role="alert">{error}</p> : null}
-          </form>
-        </section>
-      </main>
-    </div>
-  );
+  async function submit(e) { e.preventDefault(); if (pending) return; const fields = new FormData(e.currentTarget); setPending(true); setError(''); try { await api('/api/auth/login', { method: 'POST', body: { username: fields.get('username'), password: fields.get('password') } }); onSuccess(); } catch (failure) { setError(failure.message); } finally { setPending(false); } }
+  return <main className="login-page"><Brand /><h1>Welcome to Custra</h1><p>Save your details once. Register complaints with less effort.</p><form onSubmit={submit}><fieldset disabled={pending}><label htmlFor="username">Username</label><input id="username" name="username" required autoComplete="username" /><label htmlFor="password">Password</label><input id="password" name="password" type="password" required autoComplete="current-password" /><button className="primary full">{pending ? 'Signing in…' : 'Sign in'}</button></fieldset>{error ? <p role="alert" className="error">{error}</p> : null}</form><p className="demo-note">Shared demo workspace · Fictional data only.<br />Business support and technician visits are simulated.</p></main>;
 }

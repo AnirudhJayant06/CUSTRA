@@ -25,6 +25,11 @@ Development cutoff: **18 October 2026, 16:00 IST**.
 
 ## Setup
 
+The approved mobile interface now includes Home, Products and Complaints,
+optional product nicknames and warranty duration, compact preferred-date/time
+selection, and an agent conversation. See [implementation and verification](docs/MOBILE_UI_IMPLEMENTATION.md)
+for the backward-compatible API additions and [design tokens](DESIGN.md).
+
 New developer: follow [the local setup and run guide](docs/LOCAL_SETUP.md) for a
 fresh clone, your own Google login, private runtime configuration, all three
 services, the agent conversation, and troubleshooting. It requires no files from

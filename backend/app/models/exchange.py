@@ -54,7 +54,7 @@ class ExchangeResponse(BaseModel):
     display_text: str = Field(min_length=1)
     next_stage: str = Field(min_length=1)
     reference: str | None = None
-    slots: list[AppointmentSlot] = Field(default_factory=list, max_length=12)
+    slots: list[AppointmentSlot] = Field(default_factory=list, max_length=63)
     appointment: Appointment | None = None
     context_id: str | None = None
     task_id: str | None = None

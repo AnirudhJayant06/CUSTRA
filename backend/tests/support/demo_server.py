@@ -70,6 +70,20 @@ class Bucket:
 
 class Cases:
     def __init__(self): self.rows = {}; self.keys = {}; self.operations = {}; self.messages = {}; self.lock = threading.RLock()
+    def delete_product(self, key):
+        with self.lock:
+            product = self.vault.get_product(key)
+            if not product: raise LookupError('Product not found')
+            if product.get('deletedAt'): return {'id': key, 'deleted': True, 'closedComplaints': 0}
+            now = datetime.now(timezone.utc).isoformat()
+            product.update(deletedAt=now, updatedAt=now); self.vault.save_product(product)
+            count = 0
+            for row in self.rows.values():
+                if row['productId'] != key or row['status'] == 'CLOSED': continue
+                row.update(status='CLOSED', closureReason='product_deleted', closedAt=now, pendingSlotId=None, error=None, recoveryPhase=None)
+                row['currentVersion'] += 1; row['eventSequence'] += 1; count += 1
+                self.messages.setdefault(row['id'], []).append({'eventId': f"{row['id']}-product-deletion", 'sequence': row['eventSequence'], 'role': 'user', 'simulated': False, 'createdAt': now, 'displayText': 'Complaint closed because the product was deleted.'})
+            return {'id': key, 'deleted': True, 'closedComplaints': count}
     def replay_creation(self, key, digest):
         with self.lock:
             if key not in self.keys: return None
@@ -177,6 +191,7 @@ app = create_app(settings=Settings(
     demo_username=credentials["username"], password_hash=hash_password(credentials["password"]),
     secure_cookies=False, app_origin=os.getenv("CUSTRA_APP_ORIGIN", "http://127.0.0.1:5178")),
     session_store=Sessions(), vault_store=Vault(), file_store=Documents(), file_bucket=Bucket(), case_store=Cases())
+app.state.cases.store.vault = app.state.vault.store
 replay = Replay()
 business_app = create_business_app("http://business.test", store=replay)
 transport_client = httpx.AsyncClient(transport=httpx.ASGITransport(app=business_app), base_url="http://business.test", timeout=8)
@@ -187,6 +202,7 @@ app.state.cases.consumer = Consumer()
 @app.post("/test/reset")
 def reset():
     app.state.session_store = Sessions(); app.state.vault.store = Vault(); app.state.cases.store = Cases()
+    app.state.cases.store.vault = app.state.vault.store
     app.state.files.store = Documents(); app.state.files.bucket = Bucket()
     replay.operations.clear(); replay.cases.clear()
     controls.update(fail_model_once=False, model_calls=0)
