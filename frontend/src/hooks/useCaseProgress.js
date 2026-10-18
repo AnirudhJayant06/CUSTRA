@@ -36,7 +36,7 @@ export default function useCaseProgress(caseId) {
       setEvents(history);
       let sequence = history.at(-1)?.sequence || 0;
       let resumeError = attempt > 0;
-      for (let step = 0; step < 5; step += 1) {
+      for (let step = 0; step < (saved.scenarioId === 'natural' ? 30 : 5); step += 1) {
         if (saved.status !== 'PROCESSING' && !(resumeError && saved.status === 'ERROR' && saved.recoveryPhase === 'advance')) break;
         resumeError = false;
         const version = saved.currentVersion;
@@ -44,7 +44,7 @@ export default function useCaseProgress(caseId) {
           setPending(true);
           saved = await api(`${path}/advance`, { method: 'POST', signal, body: { expectedVersion: version } });
         } catch (failure) {
-          if (failure.status !== 409) throw failure;
+          if (failure.status !== 409 || /retry limit/i.test(failure.message)) throw failure;
           setPending(false);
           const deadline = Date.now() + 65_000;
           do {

@@ -24,6 +24,20 @@ QUESTIONS = {
 }
 
 
+# Wording variations are business-side fixtures only, never consumer answer hints.
+NATURAL_QUESTIONS = [
+    ('identity', 'Which appliance and model need servicing?'),
+    ('problem', 'What issue should we register?'),
+    ('contact', 'How can our service team contact you?'),
+    ('location', 'Where should the technician visit?'),
+    ('purchase', 'And when did you buy it?'),
+]
+PURCHASE_VARIANTS = [
+    'What date did you purchase this appliance?', 'When was this product bought?',
+    'Could you provide its purchase date?', 'And when did you buy it?',
+]
+
+
 from demo_schedule import future_slots
 
 
@@ -32,7 +46,7 @@ class BusinessService:
         self.store = store
 
     def exchange(self, request: dict, context_id: str) -> dict:
-        if request.get("schema_version") != 1 or request.get("scenario_id") != "basic":
+        if request.get("schema_version") != 1 or request.get("scenario_id") not in {"basic", "natural"}:
             raise ValueError("Unsupported demo scenario")
         for field in ("case_id", "operation_id"):
             if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request.get(field, "")):
@@ -43,6 +57,36 @@ class BusinessService:
             if state and state.get("context_id") != context_id:
                 raise ValueError("Business context does not match")
             action, stage = request.get("action"), request.get("stage")
+            if request.get('scenario_id') == 'natural' and action not in {'book', 'listSlots'}:
+                if action == 'start' and stage == 'new' and not state:
+                    index = 0
+                elif action in {'answer', 'correct'} and state.get('stage') == stage:
+                    if not isinstance(request.get('data', {}).get('text'), str) or not request['data']['text'].strip():
+                        raise ValueError('A natural-language answer is required')
+                    if stage == 'receipt' and action == 'answer' and not request.get('attachment'):
+                        raise ValueError('Requested invoice was not received')
+                    index = state['index'] + (0 if action == 'correct' else 1)
+                else:
+                    raise ValueError('Invalid natural-language exchange')
+                updated = {**state, 'index': index, 'context_id': context_id}
+                if index < len(NATURAL_QUESTIONS):
+                    next_stage, prompt = NATURAL_QUESTIONS[index]
+                    if next_stage == 'purchase':
+                        prompt = PURCHASE_VARIANTS[int(hashlib.sha256(request['case_id'].encode()).hexdigest()[:2], 16) % 4]
+                    response = {'display_text': prompt, 'next_stage': next_stage}
+                elif index == len(NATURAL_QUESTIONS) and (state.get('request_document') or request.get('data', {}).get('request_document')):
+                    next_stage = 'receipt'
+                    response = {'display_text': 'Please send the original invoice.', 'next_stage': next_stage}
+                else:
+                    next_stage = 'registered'
+                    updated.update(reference=f"DEMO-{request['case_id'][:12]}", slots=future_slots())
+                    response = {'display_text': 'Simulated complaint registered. Confirm your technician visit.',
+                        'next_stage': next_stage, 'reference': updated['reference'], 'slots': updated['slots']}
+                updated.update(stage=next_stage, request_document=state.get('request_document', request.get('data', {}).get('request_document', False)))
+                response['context_id'] = context_id
+                if request.get('attachment'):
+                    response['attachment_receipt'] = request['attachment']['version']
+                return response, updated
             if action == "listSlots" and state.get("stage") == "registered":
                 return {"display_text": "Choose a simulated appointment.", "next_stage": "registered",
                         "reference": state["reference"], "slots": state["slots"], "context_id": context_id}, state
@@ -92,6 +136,13 @@ class BusinessExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         try:
             request = MessageToDict(context.message.parts[0].data)
+            attachment = request.get('attachment')
+            if attachment:
+                raw = context.message.parts[1] if len(context.message.parts) == 2 else None
+                if (raw is None or not raw.HasField('raw') or len(raw.raw) > 5_000_000
+                        or hashlib.sha256(raw.raw).hexdigest() != attachment.get('version')
+                        or raw.media_type != attachment.get('mediaType') or raw.filename != attachment.get('filename')):
+                    raise ValueError('Invalid attachment transfer')
             response = await asyncio.to_thread(self.service.exchange, request, context.context_id)
         except (ValueError, KeyError, IndexError) as exc:
             raise InvalidParamsError(message="Invalid simulated business exchange") from exc

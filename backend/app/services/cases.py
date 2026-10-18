@@ -33,6 +33,7 @@ class CaseService:
         self.a2a_url = a2a_url
         self.agent_enabled = agent_enabled
         self.a2a_iam_auth = a2a_iam_auth
+        self.conversation = None
 
     def create(self, payload: dict, idempotency_key: str) -> dict:
         if not 16 <= len(idempotency_key or "") <= 128:
@@ -47,6 +48,7 @@ class CaseService:
         if replay is not None:
             return replay
 
+        preference = None
         if data.get('preferredSlotId'):
             from app.services.demo_schedule import demo_schedule
             preference = next((slot for slot in demo_schedule() if slot['id'] == data['preferredSlotId']
@@ -54,7 +56,7 @@ class CaseService:
             if not preference:
                 raise CaseValidationError({'preferredSlotId': 'This preferred time is unavailable; choose another'})
 
-        profile = self.vault.get_profile()
+        profile = {**self.vault.get_profile(), **data.get("contact", {})}
         missing = {field: "Complete this in Account settings" for field in ("name", "phone", "email")
                    if not str(profile.get(field) or "").strip()}
         if missing:
@@ -81,10 +83,12 @@ class CaseService:
         record = {
             "id": uuid.uuid4().hex, **data, "factsSnapshot": facts,
             "status": "PROCESSING", "businessStage": "new", "currentVersion": 0,
-            "scenarioId": "basic", "reference": None,
+            "scenarioId": "natural" if self.conversation else "basic", "reference": None,
             "stepIndex": 0, "eventSequence": 0,
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
+        if preference:
+            record["preferredSlot"] = preference
         return self.store.create_if_absent(idempotency_key, digest, record)
 
     def get(self, case_id: str) -> dict:
@@ -97,6 +101,17 @@ class CaseService:
         return self.store.list(product_id)
 
     async def _exchange(self, request):
+        if request.attachment:
+            import hashlib
+            import base64
+            consent = request.attachment
+            metadata, stream = self.files.open(consent['documentId'])
+            with stream:
+                content = stream.read(5_000_001)
+            if len(content) > 5_000_000 or hashlib.sha256(content).hexdigest() != consent['version']:
+                raise ValueError('Consented attachment changed')
+            request = request.model_copy(update={'attachment': {**consent,
+                'content': base64.b64encode(content).decode('ascii')}})
         if self.gateway:
             return await self.gateway.exchange(request)
         import httpx
@@ -108,6 +123,11 @@ class CaseService:
             return await A2AGateway(self.a2a_url, client).exchange(request)
 
     async def advance(self, case_id: str, expected_version: int) -> dict:
+        if self.conversation and (await asyncio.to_thread(self.get, case_id)).get("scenarioId") == "natural":
+            if not self.agent_enabled:
+                from app.services.leases import CaseConflict
+                raise CaseConflict("Agent processing is disabled")
+            return await self.conversation.advance(case_id, expected_version)
         from app.agents.consumer import validate_answer
         from app.models.exchange import ExchangeRequest, ExchangeResponse
         from app.services.leases import CaseConflict

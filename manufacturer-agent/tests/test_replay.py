@@ -98,3 +98,16 @@ def test_stale_business_slot_cannot_book():
     store.cases["fictional-case"]["slots"][0]["start"] = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     with pytest.raises(ValueError):
         service.exchange(request("book", "registered", "book-stale", {"slotId": response["slots"][0]["id"]}), "context-1")
+
+
+def test_natural_questions_do_not_supply_requested_field_hints_and_accept_text():
+    service = BusinessService(MemoryReplayStore())
+    payload = {**request(), 'scenario_id': 'natural'}
+    result = service.exchange(payload, 'ctx')
+    assert not result.get('requested_fields')
+    assert result['display_text']
+    for i in range(5):
+        result = service.exchange({**request('answer', result['next_stage'], f'natural-{i}',
+            {'text': 'Supported fictional answer'}), 'scenario_id': 'natural'}, 'ctx')
+        assert not result.get('requested_fields')
+    assert result['next_stage'] == 'registered' and result['slots']

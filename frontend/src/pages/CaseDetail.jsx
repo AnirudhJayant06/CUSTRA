@@ -5,6 +5,7 @@ import useCaseProgress from '../hooks/useCaseProgress.js';
 import ConversationTimeline from '../components/ConversationTimeline.jsx';
 import AppointmentDialog, { formatSlot } from '../components/AppointmentDialog.jsx';
 import CasePhotos from '../components/CasePhotos.jsx';
+import ConversationActions from '../components/ConversationActions.jsx';
 import { statusLabel, caseName } from '../lib/domain.js';
 import { api } from '../api/client.js';
 import Icon from '../components/Icon.jsx';
@@ -48,9 +49,11 @@ export default function CaseDetail() {
     <p className="hint">Custra answers using your saved details. Business support is simulated.</p>
     {complaint.reference ? <p className="response success">Complaint reference: <strong>{complaint.reference}</strong></p> : null}
     <ConversationTimeline events={events} pending={!closed && pending} closed={closed} />
+    <ConversationActions complaint={complaint} onUpdated={(saved) => { setComplaint(saved); retry(); }} />
     {!closed && (error || (complaint.status === 'ERROR' && complaint.recoveryPhase === 'advance')) ? <div>
       <p className="error" role="alert">{error || complaint.error?.message || 'The step could not finish.'}</p>
-      <button className="secondary" type="button" onClick={retry} disabled={pending}>Retry saved step</button>
+      <button className="secondary" type="button" onClick={retry} disabled={pending || complaint.error?.retryable === false}>Retry saved step</button>
+      {complaint.error?.retryable === false && !complaint.pendingSlotId ? <Link className="text-action" to={newComplaintHref}>Restart registration</Link> : null}
     </div> : null}
     {complaint.status === 'AWAITING_APPOINTMENT' || (complaint.status === 'ERROR' && complaint.recoveryPhase === 'book') ? <div className="response">
       <p>{complaint.recoveryPhase === 'book' ? 'Recover your pending technician visit confirmation.' : 'Registration is ready. Confirm your technician visit.'}</p>
@@ -66,7 +69,7 @@ export default function CaseDetail() {
       </div> : <p>Closed after your confirmation.</p>}
     </div> : null}
     {actionError ? <p className="error" role="alert">{actionError}</p> : null}
-    {closed ? <footer className="chat-closed-note" aria-label="Closed chat"><Icon name="lock" size={18} /><div><p>This chat is closed. You can start a new complaint if you need more help.</p><Link to={newComplaintHref}>Start a new complaint</Link></div></footer> : <CasePhotos key={caseId} caseId={caseId} />}
+    {closed ? <footer className="chat-closed-note" aria-label="Closed chat"><Icon name="lock" size={18} /><div><p>This chat is closed. You can start a new complaint if you need more help.</p><Link to={newComplaintHref}>Start a new complaint</Link></div></footer> : <CasePhotos key={caseId} caseId={caseId} complaint={complaint} onUpdated={(saved) => { if (saved) setComplaint(saved); retry(); }} />}
     {showAppointment && !closed ? <AppointmentDialog caseId={caseId} pendingSlotId={complaint.pendingSlotId} preferredSlotId={complaint.preferredSlotId}
       onClose={() => setShowAppointment(false)} onUpdated={(updated) => { setComplaint(updated); if (updated.status === 'BOOKED') retry(); }} /> : null}
   </section>;

@@ -1,6 +1,7 @@
 """Short complaint intake and durable case shape."""
 
 from datetime import date
+from app.models.account import ProfileInput
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -12,6 +13,7 @@ class ComplaintInput(BaseModel):
     issueSummary: str = Field(default="", max_length=120)
     description: str = Field(min_length=1, max_length=2000)
 
+    contact: ProfileInput | None = None
     preferredDate: date | None = None
     preferredSlotId: str | None = Field(default=None, max_length=100)
 

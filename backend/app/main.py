@@ -21,7 +21,7 @@ from app.services.upload_limit import UploadLimitMiddleware
 
 
 def create_app(settings: Settings | None = None, session_store: SessionStore | None = None,
-               vault_store=None, file_store=None, file_bucket=None, case_store=None) -> FastAPI:
+               vault_store=None, file_store=None, file_bucket=None, case_store=None, knowledge_records=None, knowledge_model=None) -> FastAPI:
     app = FastAPI(title="Custra API")
     app.state.settings = settings or Settings.from_env()
     app.state.session_store = session_store or FirestoreSessionStore(app.state.settings.project_id)
@@ -37,6 +37,20 @@ def create_app(settings: Settings | None = None, session_store: SessionStore | N
         agent_enabled=app.state.settings.agent_enabled,
         a2a_iam_auth=app.state.settings.a2a_iam_auth,
     )
+
+    app.state.cases.files = app.state.files
+    app.state.knowledge = None
+    if app.state.settings.natural_conversation and (app.state.settings.project_id or knowledge_model):
+        from app.agents.knowledge import KnowledgeModel
+        from app.services.knowledge import KnowledgeService
+        from app.services.records import FirestoreRecords
+        from app.services.conversation import ConversationService
+        model = knowledge_model or KnowledgeModel(app.state.settings.model_id, app.state.settings.project_id,
+            app.state.settings.model_location, app.state.settings.embedding_model, app.state.settings.embedding_location)
+        app.state.knowledge = KnowledgeService(knowledge_records or FirestoreRecords(app.state.settings.project_id),
+            model, app.state.files, app.state.vault)
+        app.state.cases.conversation = ConversationService(app.state.cases.store, app.state.knowledge,
+                                                         model, app.state.cases._exchange)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):

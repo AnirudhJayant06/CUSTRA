@@ -1126,3 +1126,10 @@ input::file-selector-button {
 .chat-closed-note>svg { margin-top: 3px; }
 .chat-closed-note a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; }
 .case-documents { margin-top: 16px; }
+
+.conversation-actions { margin-block: 14px; }
+.conversation-actions form { display: grid; gap: 12px; max-width: 36rem; }
+.conversation-actions label { display: grid; gap: 5px; }
+.document-choice { padding-block: 10px; display: grid; gap: 6px; }
+.document-choice p { margin: 0; }
+.case-documents .document-row { flex-wrap: wrap; }

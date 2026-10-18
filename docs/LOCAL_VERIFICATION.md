@@ -98,3 +98,67 @@ were added to the work queue.
 
 For a fresh clone and isolated authentication, follow [LOCAL_SETUP](LOCAL_SETUP.md).
 Deployment bindings and commands are in [deployment.md](../infrastructure/deployment.md).
+
+## Product knowledge and natural-language A2A (18 October 2026)
+
+Implementation branch: `feat/a2a-product-knowledge`. The new pipeline is selected
+for newly created cases when `CUSTRA_NATURAL_CONVERSATION=true` (default) and an
+explicit project/model boundary is configured. Existing `basic` cases keep their
+legacy protocol so they can resume. Set the flag false to keep new cases on the
+previous demonstration flow.
+
+Product Documents uploads run the shared extraction/indexing module. Chat-only
+uploads are directly inspected for the pending question and are not embedded;
+Save to product explicitly promotes them. Clear nonconflicting facts populate
+versioned product knowledge. Phone edits in intake or chat are complaint-local.
+
+New settings: `CUSTRA_EMBEDDING_MODEL=gemini-embedding-001` and
+`CUSTRA_EMBEDDING_LOCATION=us-central1`. Resolver/answer roles use ADK with the
+existing `CUSTRA_MODEL_ID` and `GOOGLE_CLOUD_LOCATION`; document extraction uses
+multimodal Gen AI. No new dependency or hosted vector service is required.
+Document and query vectors use distinct retrieval task types. The bounded
+Firestore index stores at most 128 source passages per product with 256-dimensional
+vectors and returns at most six supporting passages. These are MVP limits, not
+large-corpus search guarantees. Current similarity cutoff is an initial heuristic
+and needs real-data evaluation.
+
+New storage is additive under the existing workspace: `knowledge`, `evidence`,
+`document_processing`, complaint-scoped `document_inspection`, and private `turns`. Stored-file readiness and processing
+readiness are distinct. Existing documents remain viewable; indexing runs for new
+Product Documents additions. Existing unindexed documents are not automatically
+backfilled. A failed preparation retains the original; enter the needed fact or
+supply a corrected/new document. No new automatic model/embedding retry is added.
+
+Original-file sharing requires explicit selected-file/version consent and a
+business receipt. The local A2A simulator transfers bytes in a real SDK raw file
+part and acknowledges its digest; real business contract compatibility still
+requires acceptance testing. No permanent public bucket URL is generated.
+
+Offline verification uses scripted model doubles and cannot establish semantic
+understanding/extraction quality. `test_live_knowledge_resolves_purchase_paraphrases_without_runtime_field_hints`
+is opt-in with `CUSTRA_RUN_KNOWLEDGE_MODEL=1` and explicit
+`GOOGLE_CLOUD_PROJECT=custra-mvp-2026`; it permits at most eight paid resolver/answer
+calls. Its four phrasings and changed expected facts are evaluated outside the
+runtime prompts. Run only in the dedicated authorized credential environment.
+This implementation session did not run paid model tests, mutate cloud resources,
+commit, push or deploy.
+
+
+Review notes: uncertain source passages are withheld from automatic retrieval;
+clear facts remain usable. Compatible complete chat inspections can be reused
+when the user explicitly saves the original to Product Documents. Additional
+registration facts use validated `product.details.<snake_case>` keys rather than
+sentence-to-answer mappings. Internal turn artifacts preserve the exact evidence
+source and product revision. The index configuration fingerprints the embedding
+space to avoid mixing incompatible vectors.
+
+
+Final local verification: **122 backend/simulator checks passed, 3 live-model tests
+skipped** with the loopback Firestore emulator. **30 mobile/desktop browser checks
+passed**; the final new-flow subset passed **12/12** after review refinements.
+Frontend unit tests and production build passed; new model schemas passed the
+installed SDK transformation check. Actual mobile sharing and booking captures
+were inspected. Read-only API/proxy/simulator health checks passed after local
+service refresh. Review was inline without subagents. The real model, extraction
+and embedding quality, and actual business contract remain external acceptance
+work; no mocked test result is presented as proof of those capabilities.

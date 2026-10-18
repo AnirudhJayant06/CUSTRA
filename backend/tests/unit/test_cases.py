@@ -140,3 +140,12 @@ async def test_case_http_conflict_and_profile_field_errors():
         vault.profile["phone"] = ""
         incomplete = await client.post("/api/complaints", json=PAYLOAD, headers={"Idempotency-Key": "fictional-new-key-2"})
         assert incomplete.status_code == 422 and "phone" in incomplete.json()["field_errors"]
+
+
+def test_intake_contact_override_does_not_change_saved_profile():
+    cases, vault, _ = service()
+    created = cases.create({**PAYLOAD, 'contact': {'name': 'Visit Contact', 'phone': '9111111111',
+        'email': 'visit@example.test'}}, 'complaint-contact-override')
+    assert created['factsSnapshot']['profile']['phone'] == '9111111111'
+    assert vault.profile['phone'] == '9999999999'
+    assert vault.profile['name'] == 'Fictional User'

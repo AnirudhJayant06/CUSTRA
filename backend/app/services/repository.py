@@ -108,8 +108,8 @@ class FirestoreVaultStore:
 
 
 class FirestoreDocumentStore:
-    def __init__(self, project_id: str):
-        self.vault = FirestoreVaultStore(project_id)
+    def __init__(self, project_id: str, namespace: str = "shared"):
+        self.vault = FirestoreVaultStore(project_id, namespace)
 
     @property
     def collection(self):
@@ -312,7 +312,7 @@ class FirestoreCaseStore:
         def apply(transaction, case_ref, operation_ref, case, operation):
             updated = {**case, "status": "ERROR", "recoveryPhase": "advance",
                        "currentVersion": case["currentVersion"] + 1,
-                       "error": {"message": "The agent step could not finish. Retry to resume.", "retryable": True}}
+                       "error": {"message": "The agent step could not finish. Retry to resume." if operation.get("attemptCount", 0) < 3 else "Retry limit reached. Restart registration after checking its outcome.", "retryable": operation.get("attemptCount", 0) < 3}}
             transaction.set(case_ref, updated)
             transaction.update(operation_ref, {"leaseToken": None})
             return updated
@@ -375,7 +375,7 @@ class FirestoreCaseStore:
         def apply(transaction, case_ref, operation_ref, case, operation):
             updated = {**case, "status": "ERROR", "recoveryPhase": "book",
                        "pendingSlotId": operation["slotId"], "currentVersion": case["currentVersion"] + 1,
-                       "error": {"message": "Booking confirmation is pending. Retry the same selected slot.", "retryable": True}}
+                       "error": {"message": "Booking confirmation is pending. Retry the same selected slot." if operation.get("attemptCount", 0) < 3 else "Booking outcome is uncertain. Do not create another booking; contact business support.", "retryable": operation.get("attemptCount", 0) < 3}}
             transaction.set(case_ref, updated)
             transaction.update(operation_ref, {"leaseToken": None})
             return updated
@@ -410,3 +410,42 @@ class FirestoreCaseStore:
             return updated
 
         return close(self.client.transaction())
+
+    def interact(self, case_id, expected_version, changes, text=None):
+        """Versioned customer action; invalidates stale drafts, never an external send."""
+        from datetime import timezone
+        from google.cloud import firestore
+        from app.services.leases import CaseConflict
+        ref = self.root.collection('cases').document(case_id)
+        @firestore.transactional
+        def apply(transaction):
+            case = ref.get(transaction=transaction).to_dict()
+            if not case:
+                raise LookupError('Complaint not found')
+            if case['currentVersion'] != expected_version or case['status'] in {'CLOSED', 'BOOKED'}:
+                raise CaseConflict('Complaint changed; reload before continuing')
+            op_ref = self.root.collection('operations').document(f"{case_id}-advance-{case.get('stepIndex', 0)}")
+            op = op_ref.get(transaction=transaction).to_dict()
+            updated = {**case, **changes, 'currentVersion': expected_version+1,
+                       'updatedAt': datetime.now(timezone.utc).isoformat()}
+            if text:
+                updated['eventSequence'] = case.get('eventSequence', 0)+1
+                transaction.set(ref.collection('events').document(f'{case_id}-input-{expected_version}'), {
+                    'eventId': f'{case_id}-input-{expected_version}', 'sequence': updated['eventSequence'],
+                    'role': 'user', 'displayText': text, 'simulated': False, 'createdAt': updated['updatedAt']})
+            if op:
+                if op.get('sendStarted') and text:
+                    updated['queuedCorrection'] = text
+                elif not op.get('sendStarted'):
+                    transaction.update(op_ref, {'savedAnswer': None, 'leaseToken': None})
+            transaction.set(ref, updated)
+            return updated
+        return apply(self.client.transaction())
+
+    def mark_send(self, lease):
+        def apply(transaction, case_ref, operation_ref, case, operation):
+            transaction.update(operation_ref, {'sendStarted': True})
+        self._mutate_owned_operation(lease, apply)
+
+    def save_external_result(self, operation_id, response):
+        self.root.collection('operations').document(operation_id).update({'externalResult': response})

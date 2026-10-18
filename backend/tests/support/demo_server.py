@@ -136,7 +136,7 @@ class Cases:
     def fail(self, lease, phase):
         with self.lock:
             case, operation = self.owned(lease)
-            case.update(status="ERROR", recoveryPhase=phase, error={"message": "Test step failed. Retry to resume.", "retryable": True})
+            case.update(status="ERROR", recoveryPhase=phase, error={"message": "Test step failed. Retry to resume." if operation.get("attemptCount", 0) < 3 else "Retry limit reached. Restart registration.", "retryable": operation.get("attemptCount", 0) < 3})
             case["currentVersion"] += 1; operation["leaseToken"] = None
             if phase == "book": case["pendingSlotId"] = operation["slotId"]
             return copy.deepcopy(case)
@@ -154,6 +154,29 @@ class Cases:
             if case["status"] not in {"BOOKED", "CLOSED"}: raise CaseConflict
             case["status"] = "CLOSED"; case["currentVersion"] += 1
             return copy.deepcopy(case)
+
+
+    def interact(self, key, version, changes, text=None):
+        with self.lock:
+            case = self.rows[key]
+            if case['currentVersion'] != version or case['status'] in {'BOOKED', 'CLOSED'}:
+                raise CaseConflict('Complaint changed')
+            case.update(copy.deepcopy(changes)); case['currentVersion'] += 1
+            if text:
+                case['eventSequence'] += 1
+                self.messages.setdefault(key, []).append({'eventId': f'{key}-input-{version}', 'sequence': case['eventSequence'],
+                    'role': 'user', 'displayText': text, 'simulated': False})
+            op = self.operations.get(f"{key}-advance-{case['stepIndex']}")
+            if op and not op.get('sendStarted'):
+                op.update(savedAnswer=None, leaseToken=None)
+            elif op and text:
+                case['queuedCorrection'] = text
+            return copy.deepcopy(case)
+    def mark_send(self, lease):
+        with self.lock:
+            _, op = self.owned(lease); op['sendStarted'] = True
+    def save_external_result(self, operation_id, result):
+        with self.lock: self.operations[operation_id]['externalResult'] = copy.deepcopy(result)
 
 
 class Replay:
@@ -204,6 +227,7 @@ def reset():
     app.state.session_store = Sessions(); app.state.vault.store = Vault(); app.state.cases.store = Cases()
     app.state.cases.store.vault = app.state.vault.store
     app.state.files.store = Documents(); app.state.files.bucket = Bucket()
+    app.state.knowledge = None; app.state.cases.conversation = None
     replay.operations.clear(); replay.cases.clear()
     controls.update(fail_model_once=False, model_calls=0)
     return {"reset": True}
@@ -224,3 +248,24 @@ def expire_session():
 @app.get("/test/state")
 def state():
     return {"cases": app.state.cases.store.list(), "modelCalls": controls["model_calls"]}
+
+
+@app.post('/test/natural')
+def enable_natural(request_document: bool = False):
+    from knowledge_fixtures import Records, FixtureModel
+    from app.services.knowledge import KnowledgeService
+    from app.services.conversation import ConversationService
+    model = FixtureModel(request_document=request_document)
+    app.state.knowledge = KnowledgeService(Records(), model, app.state.files, app.state.vault)
+    async def exchange(request):
+        if request_document and request.action == 'start':
+            request = request.model_copy(update={'data': {'request_document': True}})
+        return await app.state.cases._exchange(request)
+    app.state.cases.conversation = ConversationService(app.state.cases.store, app.state.knowledge, model, exchange)
+    return {'enabled': True}
+
+
+@app.post('/test/fail-natural')
+def fail_natural(count: int = 3):
+    app.state.knowledge.model.fail_answers = min(max(count, 0), 3)
+    return {'configured': True}

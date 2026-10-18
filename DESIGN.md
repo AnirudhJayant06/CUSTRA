@@ -49,7 +49,7 @@ is preserved, including its unused tagline; only the brand lockup is displayed.
   readable text and 44–48px standard control targets are preserved.
 - Delete product requires confirmation and closes linked active complaints.
   History remains under Past, labeled Closed — product deleted, never Resolved.
-- Agent messages are identity-labeled left/right bubbles, with no composer.
+- Agent messages are identity-labeled left/right bubbles. Routine answers remain automated; contextual reply fields appear only for missing facts/clarification or Pause and correct. Internal resolver rewrites are never displayed.
 - Modal focus is contained and returned to the initiating control. Escape closes
   only when a save/confirmation is not pending.
 
@@ -69,3 +69,17 @@ Closed chats show subdued bubbles with readable text; history stays selectable.
 No attachment section or action controls appear after closure. A small readable
 footer says This chat is closed and links to Start a new complaint. Deleted
 products use the generic intake link; other cases preselect the original product.
+
+## Product knowledge and customer handoff
+
+New natural-language complaints show Your input needed or Paused using existing
+status tokens. Pause and correct provides an explicitly labeled correction form;
+booking and original-file sharing retain explicit confirmation. Phone changes in
+both intake and chat belong to the complaint and do not edit Profile.
+
+Product Documents show stored/preparing/searchable/failed distinctions in plain
+language. Chat attachments can answer a pending question without indexing; invoice
+and warranty uploads offer Save to product / Not now after inspection. Original
+file sharing previews a relevant saved candidate with Share this / Choose another;
+multiple equally plausible candidates require selection. These controls use the
+existing compact pastel theme, standard focus states and mobile layout.

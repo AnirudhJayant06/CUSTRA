@@ -45,7 +45,10 @@ def get_product(product_id: str, request: Request):
 @router.patch("/products/{product_id}")
 def update_product(product_id: str, changes: dict, request: Request):
     try:
-        return request.app.state.vault.update_product(product_id, changes)
+        saved = request.app.state.vault.update_product(product_id, changes)
+        if request.app.state.knowledge:
+            request.app.state.knowledge.sync_product_fields(saved, set(changes))
+        return saved
     except LookupError as exc:
         raise ApiError(404, "not_found", "Product not found") from exc
     except ValueError as exc:

@@ -1,6 +1,7 @@
 """Bounded private document upload and authenticated viewing."""
 
 import io
+import hashlib
 import os
 import uuid
 from datetime import datetime, timezone
@@ -57,7 +58,7 @@ class FileService:
             "id": document_id, "parentType": parent_type, "parentId": parent_id,
             "objectKey": object_key, "originalName": original_name,
             "mediaType": media_type, "size": len(data), "status": "pending",
-            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdAt": datetime.now(timezone.utc).isoformat(), "version": hashlib.sha256(data).hexdigest(),
         }
         self.store.save(record)
         blob = None
@@ -81,6 +82,12 @@ class FileService:
 
     def list_for_parent(self, parent_type: str, parent_id: str) -> list[dict]:
         return self.store.list_for_parent(parent_type, parent_id)
+
+    def metadata(self, document_id: str):
+        record = self.store.get(document_id)
+        if not record or record.get("status") != "ready":
+            raise LookupError("Document not found")
+        return record
 
     def open(self, document_id: str):
         record = self.store.get(document_id)

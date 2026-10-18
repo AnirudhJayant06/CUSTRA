@@ -93,3 +93,51 @@ async def test_live_vertex_consumer_answer():
     ), timeout=35)
     assert answer.text
     assert set(answer.field_refs) == {"product.brand", "product.model"}
+
+
+@pytest.mark.asyncio
+async def test_natural_a2a_attachment_is_transferred_and_receipted_without_field_hints():
+    import hashlib
+    import base64
+    content = b'%PDF-1.7 fictional invoice'
+    version = hashlib.sha256(content).hexdigest()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=business_app()), base_url='http://business.test') as client:
+        gateway = A2AGateway('http://business.test', client)
+        response = await gateway.exchange(ExchangeRequest(schema_version=1, case_id='natural-file', operation_id='n-start',
+            scenario_id='natural', action='start', stage='new', data={'request_document': True}))
+        assert response.requested_fields == []
+        for i in range(5):
+            response = await gateway.exchange(ExchangeRequest(schema_version=1, case_id='natural-file', operation_id=f'n-{i}',
+                scenario_id='natural', action='answer', stage=response.next_stage, data={'text': 'Fictional supported answer'}, context_id=response.context_id))
+        assert response.next_stage == 'receipt'
+        response = await gateway.exchange(ExchangeRequest(schema_version=1, case_id='natural-file', operation_id='n-share',
+            scenario_id='natural', action='answer', stage='receipt', data={'text': 'Requested invoice attached'}, context_id=response.context_id,
+            attachment={'documentId': 'd1', 'version': version, 'filename': 'invoice.pdf', 'mediaType': 'application/pdf',
+                        'content': base64.b64encode(content).decode('ascii')}))
+        assert response.attachment_receipt == version
+        assert response.next_stage == 'registered'
+
+
+@pytest.mark.asyncio
+async def test_live_knowledge_resolves_purchase_paraphrases_without_runtime_field_hints():
+    """Separate evaluator; actual understanding requires this paid opt-in test."""
+    import os
+    if os.getenv('CUSTRA_RUN_KNOWLEDGE_MODEL') != '1':
+        pytest.skip('Opt in to at most eight real resolver/answer calls')
+    assert os.getenv('GOOGLE_CLOUD_PROJECT') == 'custra-mvp-2026', 'Dedicated Custra project required'
+    from app.agents.knowledge import KnowledgeModel
+    model = KnowledgeModel(os.getenv('CUSTRA_MODEL_ID', 'gemini-3.5-flash-lite'), 'custra-mvp-2026')
+    questions = ['What date did you purchase this appliance?', 'When was this product bought?',
+                 'Could you provide its purchase date?', 'And when did you buy it?']
+    for index, question in enumerate(questions):
+        resolution = await model.resolve(question, {'product': {'model': 'WM-100'},
+            'history': [{'role': 'business', 'displayText': 'What model is the appliance?'},
+                        {'role': 'consumer', 'displayText': 'WM-100'}]})
+        # Expected values belong to the evaluator, never the resolver input.
+        assert resolution.requested_facts == ['product.purchaseDate']
+        date = ['2025-01-12', '2025-04-03', '2026-02-15', '2026-06-09'][index]
+        answer = await model.compose(resolution.standalone_question, [
+            {'id': 'purchase', 'field': 'product.purchaseDate', 'value': date, 'text': date},
+            {'id': 'serial', 'field': 'product.serialNumber', 'value': 'SN-999', 'text': 'SN-999'}])
+        assert answer.values.get('product.purchaseDate') == date
+        assert date in answer.text and not answer.missing

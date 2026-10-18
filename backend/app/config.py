@@ -17,10 +17,16 @@ class Settings:
     agent_enabled: bool = True
     a2a_iam_auth: bool = True
     model_location: str = "global"
+    natural_conversation: bool = True
+    embedding_model: str = "gemini-embedding-001"
+    embedding_location: str = "us-central1"
 
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
+            natural_conversation=os.getenv("CUSTRA_NATURAL_CONVERSATION", "true").lower() == "true",
+            embedding_location=os.getenv("CUSTRA_EMBEDDING_LOCATION", "us-central1"),
+            embedding_model=os.getenv("CUSTRA_EMBEDDING_MODEL", "gemini-embedding-001"),
             project_id=os.getenv("GOOGLE_CLOUD_PROJECT", ""),
             model_id=os.getenv("CUSTRA_MODEL_ID", "gemini-3.5-flash-lite"),
             bucket=os.getenv("CUSTRA_BUCKET", ""),

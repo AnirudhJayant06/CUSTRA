@@ -16,6 +16,7 @@ export default function AppointmentDialog({ caseId, pendingSlotId, preferredSlot
   const [locked, setLocked] = useState(Boolean(pendingSlotId));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [exhausted, setExhausted] = useState(false);
   const path = `/api/complaints/${encodeURIComponent(caseId)}`;
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function AppointmentDialog({ caseId, pendingSlotId, preferredSlot
     try {
       const updated = await api(`${path}/appointment`, { method: 'POST', body: { slotId: selected.id },
         headers: { 'Idempotency-Key': requestKey.current } });
+      setExhausted(updated.error?.retryable === false);
       onUpdated(updated);
       if (updated.status === 'BOOKED') onClose();
       else setError(updated.error?.message || 'Confirmation is pending. Retry this slot.');
@@ -59,7 +61,7 @@ export default function AppointmentDialog({ caseId, pendingSlotId, preferredSlot
     <form onSubmit={submit}><fieldset disabled={pending}>
       {selected && loaded ? <div className="visit-summary"><strong>{formatSlot(selected.start)}</strong></div> : <p>{loaded ? 'Your preferred time is unavailable. Close this window and try again later.' : 'Loading visit time…'}</p>}
       {error ? <p className="error" role="alert">{error}</p> : null}
-      <div className="dialog-actions"><button className="primary full" type="submit" disabled={!selected || !loaded}>{pending ? 'Confirming…' : locked ? 'Retry confirmation' : 'Confirm visit'}</button></div>
+      <div className="dialog-actions"><button className="primary full" type="submit" disabled={!selected || !loaded || exhausted}>{pending ? 'Confirming…' : locked ? 'Retry confirmation' : 'Confirm visit'}</button></div>
     </fieldset></form>
   </Modal>;
 }

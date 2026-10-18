@@ -45,9 +45,16 @@ class A2AGateway:
         if not card.supported_interfaces or any(interface.url != expected_url for interface in card.supported_interfaces):
             raise ValueError("Business Agent Card advertised an unexpected destination")
         client = factory.create(card)
-        payload = request.model_dump(exclude={"context_id"})
+        payload = request.model_dump(exclude={"context_id", "attachment"})
+        parts = []
+        if request.attachment:
+            import base64
+            attachment = request.attachment
+            payload["attachment"] = {k: v for k, v in attachment.items() if k != "content"}
+            parts.append(Part(raw=base64.b64decode(attachment["content"], validate=True),
+                filename=attachment["filename"], media_type=attachment["mediaType"]))
         part = Part(data=ParseDict(payload, Value()))
-        message = Message(message_id=request.operation_id, role=Role.ROLE_USER, parts=[part])
+        message = Message(message_id=request.operation_id, role=Role.ROLE_USER, parts=[part, *parts])
         if request.context_id:
             message.context_id = request.context_id
         try:

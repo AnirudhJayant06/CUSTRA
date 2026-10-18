@@ -36,7 +36,7 @@ export default function NewComplaint() {
   async function submit(event) {
     event.preventDefault(); if (inFlight.current) return;
     if (!profileReady) { setDialog('phone'); setError('Complete your contact details to continue.'); return; }
-    const body = { productId, addressId, description: description.trim(), preferredDate: preference ? slotDate(preference) : null, preferredSlotId: preference?.id || null };
+    const body = { productId, addressId, contact: { name: profile.name, phone: profile.phone, email: profile.email }, description: description.trim(), preferredDate: preference ? slotDate(preference) : null, preferredSlotId: preference?.id || null };
     const fingerprint = JSON.stringify(body);
     if (operation.current?.fingerprint !== fingerprint) operation.current = { fingerprint, key: crypto.randomUUID() };
     inFlight.current = true; setPending(true); setError('');
@@ -48,7 +48,7 @@ export default function NewComplaint() {
   async function saveContact(e) {
     e.preventDefault(); const form = new FormData(e.currentTarget); setPending(true); setError('');
     const body = Object.fromEntries(['name', 'phone', 'email'].map((f) => [f, String(form.get(f) || profile[f] || '').trim()]));
-    try { const saved = await api('/api/profile', { method: 'PATCH', body }); setProfile(saved); setDialog(''); }
+    try { setProfile(current => ({ ...current, ...body })); setDialog(''); }
     catch (e) { setError(e.message); } finally { setPending(false); }
   }
   if (!data) return <p role={loadError ? 'alert' : 'status'}>{loadError || 'Loading your saved details…'}</p>;
@@ -68,6 +68,6 @@ export default function NewComplaint() {
     {['date', 'time'].includes(dialog) ? <SchedulePicker initialMode={dialog === 'time' && preference ? 'time' : 'date'} slots={availability.slots} initialSlotId={preference?.id} onClose={() => setDialog('')} onSelect={(s) => { setPreference(s); setDialog(''); }} /> : null}
     {dialog === 'address' ? <Modal title="Service address" onClose={() => setDialog('')}><ul className="plain-list">{addresses.map((a) => <li key={a.id}><button className="slim-row" onClick={() => { setAddress(a.id); setDialog(''); }}><span><strong>{a.label}</strong><small>{a.line1}, {a.city}</small></span>{a.id === addressId ? <Icon name="check" /> : <Icon name="arrow" />}</button></li>)}</ul><button className="secondary" onClick={() => { setDialog(''); setEditingAddress(true); }}>Add address</button></Modal> : null}
     {editingAddress ? <AddressDialog onClose={() => setEditingAddress(false)} onSaved={(a) => { setAddresses((current) => [...current, a]); setAddress(a.id); setEditingAddress(false); }} /> : null}
-    {dialog === 'phone' ? <Modal title={profileReady ? 'Phone number' : 'Contact details'} onClose={() => setDialog('')} busy={pending}><form onSubmit={saveContact}><fieldset disabled={pending}>{!profileReady ? <><label htmlFor="inline-name">Full name</label><input id="inline-name" name="name" required defaultValue={profile?.name} maxLength={120} /><label htmlFor="inline-email">Email</label><input id="inline-email" name="email" type="email" required defaultValue={profile?.email} maxLength={254} /></> : null}<label htmlFor="inline-phone">Phone number</label><input id="inline-phone" name="phone" type="tel" required defaultValue={profile?.phone} maxLength={40} />{error ? <p className="error" role="alert">{error}</p> : null}<button className="primary full">{pending ? 'Saving…' : 'Save details'}</button></fieldset></form></Modal> : null}
+    {dialog === 'phone' ? <Modal title={profileReady ? 'Phone number' : 'Contact details'} onClose={() => setDialog('')} busy={pending}><form onSubmit={saveContact}><fieldset disabled={pending}>{!profileReady ? <><label htmlFor="inline-name">Full name</label><input id="inline-name" name="name" required defaultValue={profile?.name} maxLength={120} /><label htmlFor="inline-email">Email</label><input id="inline-email" name="email" type="email" required defaultValue={profile?.email} maxLength={254} /></> : null}<label htmlFor="inline-phone">Phone number</label><input id="inline-phone" name="phone" type="tel" required defaultValue={profile?.phone} maxLength={40} />{error ? <p className="error" role="alert">{error}</p> : null}<p className="hint">Only for this complaint. Your Profile is unchanged.</p><button className="primary full">{pending ? 'Saving…' : 'Save details'}</button></fieldset></form></Modal> : null}
   </section>;
 }

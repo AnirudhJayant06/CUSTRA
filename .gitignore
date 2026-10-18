@@ -54,3 +54,6 @@ application_default_credentials.json
 # Additional editor / OS files
 .idea/
 Thumbs.db
+
+# Local implementation ledger
+.superpowers/

@@ -13,10 +13,11 @@ class ExchangeRequest(BaseModel):
     case_id: str = Field(min_length=1)
     operation_id: str = Field(min_length=1)
     scenario_id: str = Field(min_length=1)
-    action: Literal["start", "answer", "listSlots", "book"]
+    action: Literal["start", "answer", "correct", "listSlots", "book"]
     stage: str = Field(min_length=1)
     data: dict[str, Any]
     context_id: str | None = None
+    attachment: dict[str, Any] | None = None
 
 
 class AppointmentSlot(BaseModel):
@@ -57,6 +58,7 @@ class ExchangeResponse(BaseModel):
     slots: list[AppointmentSlot] = Field(default_factory=list, max_length=63)
     appointment: Appointment | None = None
     context_id: str | None = None
+    attachment_receipt: str | None = None
     task_id: str | None = None
     message_id: str | None = None
 

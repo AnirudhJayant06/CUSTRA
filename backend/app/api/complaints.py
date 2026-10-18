@@ -105,3 +105,60 @@ def confirm_resolution(case_id: str, payload: ResolutionInput, request: Request)
         raise ApiError(409, "case_conflict", str(exc)) from exc
     except LookupError as exc:
         raise ApiError(404, "not_found", "Complaint not found") from exc
+
+
+class CustomerInput(AdvanceInput):
+    text: str = Field(default='', max_length=2000)
+    values: dict[str, str] = Field(default_factory=dict, max_length=8)
+    documentId: str | None = Field(default=None, max_length=128)
+
+
+class ShareInput(AdvanceInput):
+    documentId: str = Field(min_length=1, max_length=128)
+    documentVersion: str = Field(min_length=64, max_length=64)
+
+
+def conversation(request):
+    service = request.app.state.cases.conversation
+    if not service:
+        raise ApiError(409, 'conversation_unavailable', 'This conversation does not support this action')
+    if not request.app.state.settings.agent_enabled:
+        raise ApiError(503, 'agent_disabled', 'Agent processing is disabled')
+    return service
+
+
+@router.post('/{case_id}/input')
+async def customer_input(case_id: str, payload: CustomerInput, request: Request):
+    try:
+        return await conversation(request).submit_input(case_id, payload.expectedVersion,
+            payload.text, payload.values, payload.documentId)
+    except CaseConflict as exc:
+        raise ApiError(409, 'case_conflict', str(exc)) from exc
+    except (ValueError, LookupError) as exc:
+        raise ApiError(422, 'invalid_input', str(exc)) from exc
+
+
+@router.post('/{case_id}/pause')
+def pause(case_id: str, payload: AdvanceInput, request: Request):
+    try:
+        return conversation(request).pause(case_id, payload.expectedVersion)
+    except CaseConflict as exc:
+        raise ApiError(409, 'case_conflict', str(exc)) from exc
+
+
+@router.post('/{case_id}/resume')
+def resume(case_id: str, payload: AdvanceInput, request: Request):
+    try:
+        return conversation(request).resume(case_id, payload.expectedVersion)
+    except CaseConflict as exc:
+        raise ApiError(409, 'case_conflict', str(exc)) from exc
+
+
+@router.post('/{case_id}/share')
+def share(case_id: str, payload: ShareInput, request: Request):
+    try:
+        return conversation(request).share(case_id, payload.expectedVersion, payload.documentId, payload.documentVersion)
+    except CaseConflict as exc:
+        raise ApiError(409, 'case_conflict', str(exc)) from exc
+    except (ValueError, LookupError) as exc:
+        raise ApiError(422, 'invalid_document', str(exc)) from exc
