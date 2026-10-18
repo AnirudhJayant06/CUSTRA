@@ -21,6 +21,12 @@ def validate_grounding(answer, evidence):
     sources = {e['id']: e for e in evidence}
     if not answer.citations or set(answer.citations) - sources.keys():
         raise ValueError('Answer does not cite available evidence')
+    # Evidence IDs belong to structured metadata, not the customer-facing answer.
+    # In particular, line1 in an address citation is not a claimed house number.
+    text = answer.text
+    for identifier in sources:
+        text = re.sub(r'[\[(]\s*' + re.escape(identifier) + r'\s*[\])]', '', text)
+    answer = answer.model_copy(update={'text': re.sub(r' {2,}', ' ', text).strip()})
     cited = [sources[c] for c in answer.citations]
     for field, value in answer.values.items():
         if not is_fact_field(field) or not any(
@@ -100,7 +106,7 @@ class KnowledgeModel:
             'Never invent profile fields, credentials, consent or booking authority. '
             'Use needs_clarification for ambiguity or unsupported requests. '
             'requires_document is true only when the business asks to RECEIVE an original file, not just a fact from it. '
-            'A correction request should retain its original meaning.',
+            'Use the supplied service address context when resolving address questions.',
             {'question': question, 'context': context, 'allowed_fields': sorted(PRODUCT_FIELDS | CONTEXT_FIELDS)}, Resolution)
         return validate_resolution(result)
 
@@ -121,6 +127,7 @@ class KnowledgeModel:
         result = await self._json(
             'Answer the business question concisely using only supplied evidence. '
             'Cite evidence IDs actually used. Include values for structured facts used, with exact original values in your text. '
+            'Put citations only in the citations field; never print evidence IDs in answer text. '
             'Preserve exact digits, identifiers and dates. Do not claim an appointment is booked or make commitments. '
             'Report warranty details as recorded terms only; never verify coverage or diagnose a fault. '
             'If the evidence does not answer the question or conflicts, set missing true and explain what the user must supply.',

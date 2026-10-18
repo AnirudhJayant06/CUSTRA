@@ -1,5 +1,15 @@
 # Custra: natural-language A2A and product knowledge
 
+> Latest user change (18 October): Pause and correct is removed, including routes,
+> form, queued-correction sending and the A2A correct action. Unresolved facts
+> must not block registration: use saved facts first, persist finite preparation
+> retries, then tell the business/customer that the technician will confirm the
+> unresolved detail during the visit and continue. Original-file consent can be
+> declined using Continue — technician will confirm. This supersedes older
+> pause/correction and mandatory missing-fact handoff descriptions below.
+> Confirmed booking still requires an acknowledged business result and user consent.
+
+
 Date: 2026-10-18
 Status: Approved by the user on 2026-10-18, with explicit subsequent authorization to implement. See the implementation plan and LOCAL_VERIFICATION.md for actual completion and acceptance evidence.
 

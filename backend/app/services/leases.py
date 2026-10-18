@@ -17,9 +17,12 @@ def acquire_lease(case: dict, operation: dict, expected_version: int,
         raise CaseConflict("This action is unavailable in the current case state")
     if operation.get("leaseToken") and datetime.fromisoformat(operation["expiresAt"]) > now:
         raise CaseConflict("Another request is working on this case; reload shortly")
-    if operation.get("attemptCount", 0) >= 3:
+    legacy_recovery = (phase == 'advance' and case.get('scenarioId') == 'natural'
+        and operation.get('attemptCount', 0) >= 3 and not operation.get('preparation')
+        and not operation.get('sendStarted') and not operation.get('legacyQuestionRecovery'))
+    if operation.get("attemptCount", 0) >= 3 and not legacy_recovery:
         raise CaseConflict("Retry limit reached. Restart the failed step after checking its outcome.")
-    return {**operation, "attemptCount": operation.get("attemptCount", 0) + 1, "leaseToken": secrets.token_urlsafe(24),
+    return {**operation, **({'legacyQuestionRecovery': True} if legacy_recovery else {}), "attemptCount": operation.get("attemptCount", 0) + 1, "leaseToken": secrets.token_urlsafe(24),
             "expiresAt": (now + timedelta(seconds=60)).isoformat(), "caseVersion": expected_version}
 
 

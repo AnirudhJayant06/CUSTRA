@@ -44,7 +44,129 @@ class ConversationService:
             'pendingUserRequest': {'kind': kind, 'prompt': prompt, 'fields': fields, **extra},
             'eventSequence': events[-1]['sequence'], 'error': None, 'recoveryPhase': None}, events)
 
+    async def _attempt(self, lease, role, call, deadline):
+        """At most three persisted preparation attempts per role and turn."""
+        preparation = lease['operation'].setdefault('preparation', {})
+        attempts = preparation.setdefault('attempts', {})
+        while attempts.get(role, 0) < 3:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                return None
+            attempts[role] = attempts.get(role, 0) + 1
+            await asyncio.to_thread(self.store.save_preparation, lease, preparation)
+            try:
+                async with asyncio.timeout(min(10, remaining)):
+                    return await call()
+            except CaseConflict:
+                raise
+            except Exception:
+                # No facts or private model output in errors; use grounded fallback.
+                continue
+        return None
+
+    def _fallback(self, case, fields=(), facts=None, reason='unresolved'):
+        facts = facts or {}
+        known = {field: str(facts[field]) for field in fields if field in facts}
+        missing = [field for field in fields if field not in known]
+        deferred = bool(missing or not fields)
+        text = '; '.join(known.values())
+        if deferred:
+            text = (text + '. ' if text else '') + 'The technician will confirm this detail during the visit.'
+        return {'action': 'answer', 'text': text, 'attachment': None,
+            'data': {'text': text, 'values': known, 'citations': [f'fact:{k}' for k in known],
+                     'deferred': deferred, 'deferredFields': missing},
+            'artifact': {'originalQuestion': case['pendingQuestion']['display_text'],
+                         'fallbackReason': reason, 'answer': text}}
+
+    async def _prepare(self, lease):
+        case, operation = lease['case'], lease['operation']
+        if case['businessStage'] == 'new':
+            return {'action': 'start', 'data': {}, 'text': None, 'artifact': None}
+        if case.get('deferQuestion'):
+            return self._fallback(case, reason='customer_continued_without_detail')
+        deadline = asyncio.get_running_loop().time() + 30
+        original = case['pendingQuestion']['display_text']
+        preparation = operation.setdefault('preparation', {})
+        resolution = preparation.get('resolution')
+        if not resolution:
+            history = (await asyncio.to_thread(self.store.events, case['id']))[-12:]
+            async def resolve():
+                return validate_resolution(Resolution.model_validate(await self.model.resolve(original, {
+                    **case['factsSnapshot'], 'history': history, 'clarification': case.get('userClarification')})))
+            resolved = await self._attempt(lease, 'resolve', resolve, deadline)
+            if resolved is None:
+                return self._fallback(case, reason='resolution_unavailable')
+            resolution = resolved.model_dump()
+            preparation['resolution'] = resolution
+            await asyncio.to_thread(self.store.save_preparation, lease, preparation)
+        resolution = Resolution.model_validate(resolution)
+        if resolution.needs_clarification:
+            return self._fallback(case, resolution.requested_facts, reason='ambiguous_question')
+        consent = case.get('sharingConsent') if resolution.requires_document else None
+        if resolution.requires_document and not consent:
+            try:
+                candidates = [d for d in await asyncio.to_thread(self.knowledge.documents, case['productId'])
+                    if d.get('documentType') == resolution.document_type and d.get('processingStatus') == 'searchable']
+            except Exception:
+                candidates = []
+            return {'handoff': await self._handoff(lease,
+                'The business requested a document. Share it or continue for the technician to review it during the visit.', [],
+                'share', candidates=candidates)}
+        fields = resolution.requested_facts
+        facts = snapshot_facts(case)
+        knowledge = {'facts': {}, 'conflicts': {}, 'revision': 0}
+        # Contact and address answers must not depend on product-document services.
+        if any(is_product_field(field) for field in fields):
+            try:
+                knowledge = await asyncio.to_thread(self.knowledge.get, case['productId'])
+            except Exception:
+                pass
+            facts.update({k: str(v['value']) for k, v in knowledge['facts'].items() if is_product_field(k)})
+        facts.update(case.get('factOverrides', {}))
+        conflicts = (set(knowledge.get('conflicts', {})) & set(fields)) - set(case.get('factOverrides', {}))
+        for field in conflicts:
+            facts.pop(field, None)
+        evidence = [{'id': f'fact:{key}', 'field': key, 'value': facts[key], 'text': facts[key],
+            'revision': knowledge['revision'],
+            'source': case.get('factOverrideSources', {}).get(key) or knowledge['facts'].get(key, {}).get('source') or
+                      {'type': 'complaint_snapshot', 'id': case['id']}}
+            for key in fields if key in facts]
+        missing = [key for key in fields if key not in facts]
+        evidence.extend(case.get('chatEvidence') or [])
+        if missing and not conflicts:
+            found = await self._attempt(lease, 'search',
+                lambda: self.knowledge.search(case['productId'], resolution.standalone_question), deadline)
+            evidence.extend(found or [])
+        answer = None
+        if evidence and not conflicts:
+            async def compose():
+                return validate_grounding(GroundedAnswer.model_validate(
+                    await self.model.compose(resolution.standalone_question, evidence)), evidence)
+            answer = await self._attempt(lease, 'compose', compose, deadline)
+        if consent and not fields:
+            text = 'The customer shared the requested document.'
+            payload = {'action': 'answer', 'text': text, 'data': {'text': text},
+                'artifact': {'originalQuestion': original, 'answer': text}}
+        elif answer is None or answer.missing or conflicts:
+            payload = self._fallback(case, fields, facts, 'answer_or_evidence_unavailable')
+        else:
+            payload = {'action': 'answer', 'text': answer.text,
+                'data': {'text': answer.text, 'values': answer.values, 'citations': answer.citations},
+                'artifact': {'originalQuestion': original, 'resolvedQuestion': resolution.model_dump(),
+                    'evidence': evidence, 'knowledgeRevision': knowledge['revision'], 'answer': answer.text}}
+        if consent:
+            payload['attachment'] = consent
+        payload['artifact'].update(resolvedQuestion=resolution.model_dump(),
+            evidence=evidence, knowledgeRevision=knowledge['revision'])
+        return payload
+
     async def advance(self, case_id, expected_version):
+        # Compatibility only: release cases left in the removed pause UI.
+        previous = await asyncio.to_thread(self.store.get, case_id)
+        if previous and previous['status'] == 'PAUSED':
+            previous = await asyncio.to_thread(self.store.interact, case_id, expected_version,
+                {'status': 'PROCESSING', 'pausedStatus': None, 'queuedCorrection': None})
+            expected_version = previous['currentVersion']
         lease = await asyncio.to_thread(self.store.acquire_advance, case_id, expected_version)
         case, operation = lease['case'], lease['operation']
         try:
@@ -52,69 +174,17 @@ class ConversationService:
                 if case.get('stepIndex', 0) >= 30:
                     return await self._handoff(lease, 'This conversation needs your assistance to continue.', [], 'clarification')
                 stage = case['businessStage']
-                correcting = bool(case.get('queuedCorrection')) and not operation.get('savedAnswer')
                 messages = []; payload = operation.get('savedAnswer')
                 if not payload:
-                    payload = {'data': {}, 'text': None, 'artifact': None}
-                    if correcting:
-                        payload.update(text='Correction from the customer: ' + case['queuedCorrection'],
-                                       data={'text': 'Correction from the customer: ' + case['queuedCorrection']})
-                    elif stage != 'new':
-                        original = case['pendingQuestion']['display_text']
-                        history = (await asyncio.to_thread(self.store.events, case_id))[-12:]
-                        resolution = validate_resolution(Resolution.model_validate(await self.model.resolve(original, {
-                            'product': case['factsSnapshot'].get('product'), 'history': history,
-                            'clarification': case.get('userClarification'), 'issue': case['factsSnapshot'].get('issue')})))
-                        if resolution.needs_clarification:
-                            return await self._handoff(lease, resolution.clarification or 'Please clarify the business question.', [], 'clarification')
-                        if resolution.requires_document:
-                            consent = case.get('sharingConsent')
-                            if not consent:
-                                candidates = [d for d in await asyncio.to_thread(self.knowledge.documents, case['productId'])
-                                    if d.get('documentType') == resolution.document_type and d.get('processingStatus') == 'searchable']
-                                return await self._handoff(lease, 'The business requested a document. Choose the file to share.', [],
-                                    'share', candidates=candidates)
-                            payload['attachment'] = consent
-                        facts = snapshot_facts(case)
-                        knowledge = await asyncio.to_thread(self.knowledge.get, case['productId'])
-                        facts.update({k: v['value'] for k, v in knowledge['facts'].items()})
-                        # Explicit complaint corrections override older product knowledge.
-                        facts.update(case.get('factOverrides', {}))
-                        conflicts = set(knowledge.get('conflicts', {})) & set(resolution.requested_facts)
-                        if conflicts:
-                            return await self._handoff(lease, 'Please confirm the conflicting product information.', sorted(conflicts))
-                        evidence = [{'id': f'fact:{k}', 'field': k, 'value': facts[k], 'text': facts[k],
-                                     'revision': knowledge['revision']} for k in resolution.requested_facts if k in facts]
-                        for item in evidence:
-                            key = item['field']
-                            if key in case.get('factOverrides', {}):
-                                item['source'] = case.get('factOverrideSources', {}).get(key, {'type': 'user', 'id': case_id})
-                            else:
-                                item['source'] = knowledge['facts'].get(key, {}).get('source', {'type': 'complaint_snapshot', 'id': case_id})
-                        missing = [k for k in resolution.requested_facts if k not in facts]
-                        if case.get('chatEvidence'):
-                            evidence.extend(case['chatEvidence'])
-                        if missing:
-                            try:
-                                evidence.extend(await self.knowledge.search(case['productId'], resolution.standalone_question))
-                            except Exception:
-                                return await self._handoff(lease, 'Document search is unavailable. Please supply the requested detail.', missing)
-                        if not evidence and not payload.get('attachment'):
-                            return await self._handoff(lease, original, missing or resolution.requested_facts)
-                        if evidence:
-                            answer = validate_grounding(GroundedAnswer.model_validate(
-                                await self.model.compose(resolution.standalone_question, evidence)), evidence)
-                            if answer.missing:
-                                return await self._handoff(lease, answer.text, missing or resolution.requested_facts)
-                            payload.update(text=answer.text, data={'text': answer.text, 'values': answer.values,
-                                'citations': answer.citations})
-                        else:
-                            payload.update(text='The customer shared the requested document.', data={'text': 'Requested document attached.'})
-                        payload['artifact'] = {'originalQuestion': original, 'resolvedQuestion': resolution.model_dump(),
-                            'evidence': evidence, 'knowledgeRevision': knowledge['revision'], 'answer': payload['text']}
-                    payload['action'] = 'correct' if correcting else ('start' if stage == 'new' else 'answer')
+                    try:
+                        async with asyncio.timeout(32):
+                            payload = await self._prepare(lease)
+                    except TimeoutError:
+                        payload = self._fallback(case, reason='preparation_deadline')
+                    if 'handoff' in payload:
+                        return payload['handoff']
                     await asyncio.to_thread(self.store.save_answer, lease, payload)
-                # A pause/correction during a model call prevents subsequent send.
+                # Consent/customer input during preparation invalidates stale drafts.
                 latest = await asyncio.to_thread(self.store.get, case_id)
                 if latest['currentVersion'] != case['currentVersion'] or latest['status'] not in {'PROCESSING', 'ERROR'}:
                     raise CaseConflict('Conversation changed; resume from saved progress')
@@ -134,7 +204,10 @@ class ConversationService:
                 if hasattr(self.store, 'save_external_result'):
                     await asyncio.to_thread(self.store.save_external_result, operation['operationId'], response.model_dump(mode='json'))
                 if payload['artifact'] and hasattr(self.knowledge, 'records'):
-                    await asyncio.to_thread(self.knowledge.records.mutate, 'turns', operation['operationId'], lambda _: payload['artifact'])
+                    try:
+                        await asyncio.to_thread(self.knowledge.records.mutate, 'turns', operation['operationId'], lambda _: payload['artifact'])
+                    except Exception:
+                        pass  # Optional retrieval audit storage cannot block an acknowledged turn.
                 if payload['text']:
                     messages.append(('consumer', payload['text']))
                 messages.append(('business', response.display_text))
@@ -145,7 +218,10 @@ class ConversationService:
                     'protocolContextId': response.context_id, 'protocolMessageId': response.message_id,
                     'protocolTaskId': response.task_id, 'reference': response.reference or case.get('reference'),
                     'slots': [s.model_dump(mode='json') for s in response.slots], 'pendingUserRequest': None,
-                    'queuedCorrection': None if payload['action'] == 'correct' else case.get('queuedCorrection'),
+                    'deferQuestion': None,
+                    'deferredQuestions': case.get('deferredQuestions', []) + ([{
+                        'question': case['pendingQuestion']['display_text'], 'fields': payload['data'].get('deferredFields', []),
+                        'operationId': operation['operationId']}] if payload['data'].get('deferred') else []),
                     'sharingConsent': None, 'chatEvidence': None, 'userClarification': None,
                     'eventSequence': events[-1]['sequence'], 'recoveryPhase': None, 'error': None}, events)
         except CaseConflict:
@@ -157,7 +233,7 @@ class ConversationService:
         case = await asyncio.to_thread(self.store.get, case_id)
         if not case or case['currentVersion'] != version:
             raise CaseConflict('Complaint changed; reload before replying')
-        if case['status'] not in {'AWAITING_USER', 'PAUSED'}:
+        if case['status'] != 'AWAITING_USER':
             raise CaseConflict('This conversation is not waiting for input')
         pending = case.get('pendingUserRequest') or {}
         fields = pending.get('fields', [])
@@ -168,6 +244,8 @@ class ConversationService:
         override_sources = dict(case.get('factOverrideSources', {}))
         if not all(is_fact_field(field) for field in values):
             raise ValueError('Unsupported fact')
+        if set(values) - set(fields):
+            raise ValueError('Only the detail requested by the business can be supplied')
         if case['status'] == 'AWAITING_USER' and not document_id and pending.get('kind') == 'fact' and set(fields) - values.keys():
             raise ValueError('Provide each requested fact')
         for field, value in values.items():
@@ -179,11 +257,6 @@ class ConversationService:
             snapshot.setdefault(section, {})[name] = value.strip()
         changes = {'factsSnapshot': snapshot, 'factOverrides': overrides, 'factOverrideSources': override_sources, 'status': 'PROCESSING',
             'pendingUserRequest': None, 'userClarification': text if not values else None, 'error': None, 'recoveryPhase': None}
-        if case['status'] == 'PAUSED' and values and case['businessStage'] != 'new':
-            import re
-            changes['queuedCorrection'] = '; '.join(
-                re.sub(r'(?<!^)(?=[A-Z])', ' ', key.rsplit('.', 1)[-1]).replace('_', ' ').capitalize() + ': ' + value
-                for key, value in values.items())
         extracted_reusable = {}
         if document_id:
             result = await self.knowledge.inspect_chat(case, document_id, case['pendingQuestion']['display_text'])
@@ -209,22 +282,13 @@ class ConversationService:
                 {'type': 'document', 'id': document_id, 'caseId': case_id}, correction=False)
         return saved
 
-    def pause(self, case_id, version):
+    def continue_without_detail(self, case_id, version):
         case = self.store.get(case_id)
-        if not case:
-            raise CaseConflict('Complaint not found')
-        if case['status'] not in {'PROCESSING', 'ERROR', 'AWAITING_USER'}:
-            raise CaseConflict('This conversation cannot be paused now')
-        return self.store.interact(case_id, version, {'status': 'PAUSED', 'pausedStatus': case['status']})
-
-    def resume(self, case_id, version):
-        case = self.store.get(case_id)
-        if not case:
-            raise CaseConflict('Complaint not found')
-        if case['status'] != 'PAUSED':
-            raise CaseConflict('This conversation is not paused')
-        status = case.get('pausedStatus', 'PROCESSING')
-        return self.store.interact(case_id, version, {'status': status, 'pausedStatus': None})
+        if not case or case['status'] != 'AWAITING_USER':
+            raise CaseConflict('This conversation is not awaiting a detail')
+        return self.store.interact(case_id, version, {'status': 'PROCESSING',
+            'pendingUserRequest': None, 'deferQuestion': True},
+            'Continue; the technician will confirm this detail during the visit.')
 
     def share(self, case_id, version, document_id, document_version):
         import hashlib

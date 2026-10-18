@@ -60,12 +60,12 @@ class BusinessService:
             if request.get('scenario_id') == 'natural' and action not in {'book', 'listSlots'}:
                 if action == 'start' and stage == 'new' and not state:
                     index = 0
-                elif action in {'answer', 'correct'} and state.get('stage') == stage:
+                elif action == 'answer' and state.get('stage') == stage:
                     if not isinstance(request.get('data', {}).get('text'), str) or not request['data']['text'].strip():
                         raise ValueError('A natural-language answer is required')
-                    if stage == 'receipt' and action == 'answer' and not request.get('attachment'):
+                    if stage == 'receipt' and not request.get('attachment') and request.get('data', {}).get('deferred') is not True:
                         raise ValueError('Requested invoice was not received')
-                    index = state['index'] + (0 if action == 'correct' else 1)
+                    index = state['index'] + 1
                 else:
                     raise ValueError('Invalid natural-language exchange')
                 updated = {**state, 'index': index, 'context_id': context_id}

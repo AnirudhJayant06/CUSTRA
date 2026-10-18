@@ -162,3 +162,41 @@ were inspected. Read-only API/proxy/simulator health checks passed after local
 service refresh. Review was inline without subagents. The real model, extraction
 and embedding quality, and actual business contract remain external acceptance
 work; no mocked test result is presented as proof of those capabilities.
+
+
+## Nonblocking question preparation and removal of Pause and correct
+
+Reproduced an address-grounding failure without a model call: the numeric guard
+rejected the digit in an internal fact:address.line1 citation rendered in answer
+text. Known citation markers are now removed from visible text before validating
+exact values and numeric claims. Structured citations remain in internal evidence.
+
+Address/contact answers use complaint snapshots without depending on product
+document retrieval. Resolution is cached per operation; resolver/search/composer
+attempt counts are persisted, capped at three per role, and share a 30-second
+preparation budget (10 seconds per attempt, 32-second overall preparation bound).
+After failures, complete saved facts produce a deterministic grounded answer.
+Missing/ambiguous/conflicting details produce an explicit technician-confirmation
+answer, are recorded in deferredQuestions, and advance the same A2A context. No
+unknown value is saved as a known product fact. Deferral payloads are persisted
+before external send and replay identically after lost responses. Optional turn
+audit-storage failure does not discard an acknowledged business response.
+
+Pause/resume endpoints, correction dropdown/state, queued-correction generation
+and the A2A correct action are removed. A small compatibility path releases old
+PAUSED cases. Old exhausted unsent preparation operations receive one bounded
+recovery opportunity; this does not reset sent operations or booking limits.
+Legacy fact handoffs and original-file consent offer a Continue option. Declining
+file sharing sends a deferral, never private bytes. The simulator accepts such
+deferrals and advances; actual business acceptance remains an integration boundary.
+
+Transport/storage outages and ambiguous booking outcomes are not reported as
+success. Existing saved values and historical messages are not rewritten by this
+code change. No paid model calls or cloud-record repair were performed.
+
+Verification for this refinement: 124 backend/simulator tests passed, 10
+emulator/live opt-ins skipped in the current environment. Full browser suite:
+32 passed across mobile/desktop; final natural-flow recheck 12 passed and final
+consent/deferral review 4 passed. Frontend units/build and whitespace passed.
+These local doubles establish workflow/grounding regressions, not live LLM
+quality or production Firestore/business acceptance.

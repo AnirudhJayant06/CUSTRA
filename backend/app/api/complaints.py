@@ -138,18 +138,10 @@ async def customer_input(case_id: str, payload: CustomerInput, request: Request)
         raise ApiError(422, 'invalid_input', str(exc)) from exc
 
 
-@router.post('/{case_id}/pause')
-def pause(case_id: str, payload: AdvanceInput, request: Request):
+@router.post('/{case_id}/continue')
+def continue_without_detail(case_id: str, payload: AdvanceInput, request: Request):
     try:
-        return conversation(request).pause(case_id, payload.expectedVersion)
-    except CaseConflict as exc:
-        raise ApiError(409, 'case_conflict', str(exc)) from exc
-
-
-@router.post('/{case_id}/resume')
-def resume(case_id: str, payload: AdvanceInput, request: Request):
-    try:
-        return conversation(request).resume(case_id, payload.expectedVersion)
+        return conversation(request).continue_without_detail(case_id, payload.expectedVersion)
     except CaseConflict as exc:
         raise ApiError(409, 'case_conflict', str(exc)) from exc
 

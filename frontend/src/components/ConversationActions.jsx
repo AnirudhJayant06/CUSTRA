@@ -16,7 +16,6 @@ const factLabel = key => labels[key] || key.replace(/^product\.details\./, '').r
 export default function ConversationActions({ complaint, onUpdated }) {
   const [values, setValues] = useState({});
   const [text, setText] = useState('');
-  const [field, setField] = useState('product.purchaseDate');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [documents, setDocuments] = useState([]);
@@ -49,18 +48,8 @@ export default function ConversationActions({ complaint, onUpdated }) {
   const selectedDocument = documents.find(doc => doc.id === request?.candidates?.[0]?.id) || documents[0];
   const showChoices = chooseAnother || (documents.length > 1 && request?.candidates?.length !== 1);
   const visibleDocuments = showChoices ? documents : selectedDocument ? [selectedDocument] : [];
-  const paused = complaint.status === 'PAUSED';
-  if (complaint.scenarioId !== 'natural' || ['CLOSED', 'BOOKED', 'AWAITING_APPOINTMENT'].includes(complaint.status)) return null;
+  if (complaint.scenarioId !== 'natural' || complaint.status !== 'AWAITING_USER') return null;
   return <section className="conversation-actions" aria-label="Conversation actions">
-    {!paused && ['PROCESSING', 'ERROR', 'AWAITING_USER'].includes(complaint.status) ? <button type="button" className="text-button" disabled={busy} onClick={() => action('pause')}>Pause and correct</button> : null}
-    {paused ? <>
-      <p>Automation is paused. An answer already sent may need a correction.</p>
-      <form onSubmit={event => { event.preventDefault(); action('input', { text, values: { [field]: text } }); }}>
-        <label htmlFor="correction-field">Information to correct</label><select id="correction-field" value={field} onChange={event => setField(event.target.value)}>{Object.entries({ ...Object.fromEntries(Object.keys(complaint.factOverrides || {}).map(key => [key, factLabel(key)])), ...labels }).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-        <label>Correct value<input required maxLength={500} value={text} onChange={event => setText(event.target.value)} /></label>
-        <div className="dialog-actions"><button disabled={busy}>Save correction and continue</button><button type="button" className="secondary" disabled={busy} onClick={() => action('resume')}>Resume conversation</button></div>
-      </form>
-    </> : null}
     {complaint.status === 'AWAITING_USER' && request ? <>
       <p>{request.prompt}</p>
       {request.kind === 'share' ? <div>
@@ -79,6 +68,7 @@ export default function ConversationActions({ complaint, onUpdated }) {
         <button disabled={busy}>{busy ? 'Sending…' : 'Send details'}</button>
       </form>}
     </> : null}
+    <button type="button" className="secondary" disabled={busy} onClick={() => action('continue')}>Continue — technician will confirm</button>
     {error ? <p className="error" role="alert">{error}</p> : null}
   </section>;
 }

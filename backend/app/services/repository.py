@@ -292,6 +292,11 @@ class FirestoreCaseStore:
 
         self._mutate_owned_operation(lease, apply)
 
+    def save_preparation(self, lease: dict, preparation: dict) -> None:
+        def apply(transaction, case_ref, operation_ref, case, operation):
+            transaction.update(operation_ref, {'preparation': preparation})
+        self._mutate_owned_operation(lease, apply)
+
     def commit_advance(self, lease: dict, changes: dict, events: list[dict]) -> dict:
         from datetime import datetime, timezone
 
@@ -434,9 +439,7 @@ class FirestoreCaseStore:
                     'eventId': f'{case_id}-input-{expected_version}', 'sequence': updated['eventSequence'],
                     'role': 'user', 'displayText': text, 'simulated': False, 'createdAt': updated['updatedAt']})
             if op:
-                if op.get('sendStarted') and text:
-                    updated['queuedCorrection'] = text
-                elif not op.get('sendStarted'):
+                if not op.get('sendStarted'):
                     transaction.update(op_ref, {'savedAnswer': None, 'leaseToken': None})
             transaction.set(ref, updated)
             return updated

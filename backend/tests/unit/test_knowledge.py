@@ -221,3 +221,14 @@ def test_manual_product_edit_supersedes_older_knowledge_without_changing_other_f
     updated = svc.sync_product_fields({'id': 'p1', 'purchaseDate': '2026-03-15', 'modelNumber': None}, {'purchaseDate', 'modelNumber'})
     assert updated['facts']['product.purchaseDate']['value'] == '2026-03-15'
     assert updated['facts']['product.serialNumber']['value'] == 'SN-001'
+
+
+def test_internal_fact_citations_are_metadata_not_new_address_identifiers():
+    from app.agents.knowledge import validate_grounding
+    from app.models.knowledge import GroundedAnswer
+    evidence = [{'id': 'fact:address.line1', 'field': 'address.line1', 'value': '10 Fiction Street', 'text': '10 Fiction Street'}]
+    answer = validate_grounding(GroundedAnswer(text='10 Fiction Street [fact:address.line1]', citations=['fact:address.line1'], values={'address.line1': '10 Fiction Street'}), evidence)
+    assert answer.text == '10 Fiction Street'
+    assert answer.citations == ['fact:address.line1']
+    with pytest.raises(ValueError):
+        validate_grounding(GroundedAnswer(text='999 Invented Street [fact:address.line1]', citations=['fact:address.line1'], values={'address.line1': '999 Invented Street'}), evidence)

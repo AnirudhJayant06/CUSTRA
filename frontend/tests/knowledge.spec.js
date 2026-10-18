@@ -21,17 +21,17 @@ async function setup(page, request, sharing = false) {
   return { complaint, product };
 }
 
-test('natural registration hands off missing fact, restores it and books', async ({ page, request }, info) => {
+test('natural registration defers unknown details and reaches visit confirmation', async ({ page, request }, info) => {
   const { complaint, product } = await setup(page, request);
   await page.goto(`/complaints/${complaint.id}`);
-  const input = page.getByLabel('Purchase date', { exact: true });
-  await expect(input).toBeVisible(); await page.reload(); await expect(input).toBeVisible();
-  await input.fill('2026-02-12'); await page.getByRole('button', { name: 'Send details', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Confirm technician visit', exact: true });
-  await expect(dialog).toBeVisible(); await dialog.getByRole('button', { name: 'Confirm visit', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Technician visit confirmed', exact: true })).toBeVisible();
+  const visit = page.getByRole('dialog', { name: 'Confirm technician visit', exact: true });
+  await expect(visit).toBeVisible(); await visit.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByText('The technician will confirm this detail during the visit.', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Purchase date', { exact: true })).toHaveCount(0);
+  const saved = await (await page.request.get(`/api/complaints/${complaint.id}`)).json();
+  expect(saved.deferredQuestions[0].fields).toEqual(['product.purchaseDate']);
   const knowledge = await (await page.request.get(`/api/products/${product.id}/knowledge`)).json();
-  expect(knowledge.facts['product.purchaseDate'].value).toBe('2026-02-12');
+  expect(knowledge.facts['product.purchaseDate']).toBeUndefined();
   await page.screenshot({ path: info.outputPath('knowledge-registration.png'), fullPage: true });
 });
 
@@ -50,21 +50,16 @@ test('product upload is indexed, chat upload stays unindexed until promotion', a
   expect(docs.find(d => d.id === chat.id).processingStatus).toBe('searchable');
 });
 
-test('pause correction changes complaint phone and leaves Profile untouched', async ({ page, request }) => {
+test('removed pause and correction cannot mutate profile or product facts', async ({ page, request }) => {
   const { complaint } = await setup(page, request);
   await page.goto(`/complaints/${complaint.id}`);
-  await expect(page.getByLabel('Purchase date', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Pause and correct', exact: true }).click();
-  await page.getByLabel('Information to correct', { exact: true }).selectOption('profile.phone');
-  await page.getByLabel('Correct value', { exact: true }).fill('9111111111');
-  await page.getByRole('button', { name: 'Save correction and continue', exact: true }).click();
-  await expect(page.getByLabel('Purchase date', { exact: true })).toBeVisible();
-  const saved = await (await page.request.get(`/api/complaints/${complaint.id}`)).json();
-  expect(saved.factsSnapshot.profile.phone).toBe('9111111111');
-  const profile = await (await page.request.get('/api/profile')).json();
-  expect(profile.phone).toBe('9000000000');
+  await expect(page.getByRole('dialog', { name: 'Confirm technician visit', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause and correct', exact: true })).toHaveCount(0);
+  for (const action of ['pause', 'resume']) {
+    expect((await page.request.post(`/api/complaints/${complaint.id}/${action}`, { data: { expectedVersion: 0 } })).status()).toBe(404);
+  }
+  expect((await (await page.request.get('/api/profile')).json()).phone).toBe('9000000000');
 });
-
 
 test('business-requested invoice is selected and shared only after confirmation', async ({ page, request }, info) => {
   const { complaint, product } = await setup(page, request, true);
@@ -85,6 +80,10 @@ test('business-requested invoice is selected and shared only after confirmation'
 
 test('chat attachment answers missing detail and saving to Product Documents is optional', async ({ page, request }) => {
   const { complaint, product } = await setup(page, request);
+  // Rehydrate a historical handoff to preserve optional chat-document input support.
+  let saved = complaint;
+  for (let i = 0; i < 5; i += 1) saved = await (await page.request.post(`/api/complaints/${complaint.id}/advance`, { data: { expectedVersion: saved.currentVersion } })).json();
+  expect((await request.post(`${control}/test/await-detail?case_id=${complaint.id}`)).ok()).toBe(true);
   await page.goto(`/complaints/${complaint.id}`);
   await expect(page.getByLabel('Purchase date', { exact: true })).toBeVisible();
   const uploaded = await (await page.request.post(`/api/complaints/${complaint.id}/documents`, { multipart: {
@@ -100,18 +99,26 @@ test('chat attachment answers missing detail and saving to Product Documents is 
   expect(documents.find(d => d.id === uploaded.id).processingStatus).toBe('searchable');
 });
 
-test('manual retry budget survives refresh and stops after two retries', async ({ page, request }) => {
+test('answer retry budget is automatic and cannot block registration', async ({ page, request }) => {
   const { complaint } = await setup(page, request);
   expect((await request.post(`${control}/test/fail-natural?count=3`)).ok()).toBe(true);
   await page.goto(`/complaints/${complaint.id}`);
-  const retry = page.getByRole('button', { name: 'Retry saved step', exact: true });
-  await expect(retry).toBeEnabled();
-  const before = await (await page.request.get(`/api/complaints/${complaint.id}`)).json();
-  await retry.click();
-  await expect.poll(async () => (await (await page.request.get(`/api/complaints/${complaint.id}`)).json()).currentVersion).toBeGreaterThan(before.currentVersion);
-  await expect(retry).toBeEnabled(); await page.reload();
-  await expect(retry).toBeEnabled(); await retry.click();
-  await expect(retry).toBeDisabled(); await page.reload();
-  await expect(retry).toBeDisabled();
-  await expect(page.getByRole('link', { name: 'Restart registration', exact: true })).toBeVisible();
+  const visit = page.getByRole('dialog', { name: 'Confirm technician visit', exact: true });
+  await expect(visit).toBeVisible();
+  const state = await (await request.get(`${control}/test/state`)).json();
+  expect(Object.values(state.preparationAttempts).some(a => a.compose === 3)).toBe(true);
+  await page.reload(); await expect(visit).toBeVisible();
+  expect((await (await request.get(`${control}/test/state`)).json()).preparationAttempts).toEqual(state.preparationAttempts);
+  await expect(page.getByRole('button', { name: 'Retry saved step', exact: true })).toHaveCount(0);
+});
+
+// File-sharing consent remains optional; deferral never sends a private original.
+test('continue without sharing an invoice reaches the next step without transferring it', async ({ page, request }) => {
+  const { complaint } = await setup(page, request, true);
+  await page.goto(`/complaints/${complaint.id}`);
+  const proceed = page.getByRole('button', { name: 'Continue — technician will confirm', exact: true });
+  await expect(proceed).toBeVisible(); await proceed.click();
+  await expect(page.getByRole('dialog', { name: 'Confirm technician visit', exact: true })).toBeVisible();
+  const saved = await (await page.request.get(`/api/complaints/${complaint.id}`)).json();
+  expect(saved.status).toBe('AWAITING_APPOINTMENT'); expect(saved.sharingConsent).toBeFalsy();
 });

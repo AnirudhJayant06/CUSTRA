@@ -13,7 +13,7 @@ class ExchangeRequest(BaseModel):
     case_id: str = Field(min_length=1)
     operation_id: str = Field(min_length=1)
     scenario_id: str = Field(min_length=1)
-    action: Literal["start", "answer", "correct", "listSlots", "book"]
+    action: Literal["start", "answer", "listSlots", "book"]
     stage: str = Field(min_length=1)
     data: dict[str, Any]
     context_id: str | None = None

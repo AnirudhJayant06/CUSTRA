@@ -126,6 +126,10 @@ class Cases:
         with self.lock:
             _, operation = self.owned(lease)
             operation["savedAnswer"] = copy.deepcopy(answer)
+    def save_preparation(self, lease, preparation):
+        with self.lock:
+            _, operation = self.owned(lease)
+            operation['preparation'] = copy.deepcopy(preparation)
     def commit_advance(self, lease, changes, events):
         with self.lock:
             case, operation = self.owned(lease)
@@ -169,8 +173,6 @@ class Cases:
             op = self.operations.get(f"{key}-advance-{case['stepIndex']}")
             if op and not op.get('sendStarted'):
                 op.update(savedAnswer=None, leaseToken=None)
-            elif op and text:
-                case['queuedCorrection'] = text
             return copy.deepcopy(case)
     def mark_send(self, lease):
         with self.lock:
@@ -247,7 +249,7 @@ def expire_session():
 
 @app.get("/test/state")
 def state():
-    return {"cases": app.state.cases.store.list(), "modelCalls": controls["model_calls"]}
+    return {"cases": app.state.cases.store.list(), "modelCalls": controls["model_calls"], "preparationAttempts": {key: op.get("preparation", {}).get("attempts", {}) for key, op in app.state.cases.store.operations.items()}}
 
 
 @app.post('/test/natural')
@@ -269,3 +271,14 @@ def enable_natural(request_document: bool = False):
 def fail_natural(count: int = 3):
     app.state.knowledge.model.fail_answers = min(max(count, 0), 3)
     return {'configured': True}
+
+
+@app.post('/test/await-detail')
+def historical_handoff(case_id: str):
+    store = app.state.cases.store
+    with store.lock:
+        case = store.rows[case_id]
+        assert case['businessStage'] == 'purchase'
+        case.update(status='AWAITING_USER', pendingUserRequest={'kind': 'fact', 'prompt': 'Purchase date', 'fields': ['product.purchaseDate']})
+        case['currentVersion'] += 1
+    return {'restored': True}
